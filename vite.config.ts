@@ -9,6 +9,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // Service Worker vorerst abgeschaltet: dieser SW entfernt sich bei allen bestehenden
+      // Besuchern selbst und leert die Caches → Schluss mit halb-gecachten Seiten (weiß/nur Text).
+      // Die Seite lädt dann wie eine normale Website. PWA kann später sauber reaktiviert werden.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
