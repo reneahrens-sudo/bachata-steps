@@ -1,0 +1,148 @@
+import { supabase } from './supabase'
+
+const BUCKET = 'videos'
+
+export function publicVideoUrl(storagePath: string): string {
+  return supabase.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl
+}
+
+/** Uploads a class video to Storage and inserts a `videos` row. Returns the video row id + url. */
+export async function uploadClassVideo(
+  file: File,
+  userId: string,
+  opts: { title?: string; visibility?: string; durationS?: number; onProgress?: (pct: number) => void } = {},
+): Promise<{ videoId: string; url: string; storagePath: string }> {
+  const ext = (file.name.split('.').pop() || 'mp4').toLowerCase()
+  const uuid = crypto.randomUUID()
+  const storagePath = `${userId}/${uuid}.${ext}`
+
+  const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, file, {
+    contentType: file.type || 'video/mp4',
+    upsert: false,
+  })
+  if (upErr) throw upErr
+  opts.onProgress?.(100)
+
+  const { data, error } = await supabase
+    .from('videos')
+    .insert({
+      owner_id: userId,
+      title: opts.title ?? file.name,
+      storage_path: storagePath,
+      visibility: opts.visibility ?? 'unlisted',
+      duration_s: opts.durationS ? Math.round(opts.durationS) : null,
+      size_bytes: file.size,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+
+  return { videoId: data.id, url: publicVideoUrl(storagePath), storagePath }
+}
+
+/** Uploads a class video to Cloudflare R2 via a presigned URL from the edge function. */
+export async function uploadClassVideoR2(
+  file: File,
+  userId: string,
+  opts: { title?: string; visibility?: string; durationS?: number } = {},
+): Promise<{ videoId: string; url: string; storagePath: string }> {
+  const { data, error } = await supabase.functions.invoke('r2-presign', {
+    body: { filename: file.name, contentType: file.type || 'video/mp4' },
+  })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  const { uploadUrl, publicUrl, contentType, key } = data as {
+    uploadUrl: string; publicUrl: string; contentType: string; key: string
+  }
+  if (!publicUrl) throw new Error('R2 ohne öffentliche URL konfiguriert (R2_PUBLIC_BASE fehlt).')
+
+  const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file })
+  if (!put.ok) throw new Error(`R2-Upload fehlgeschlagen (HTTP ${put.status}).`)
+
+  const { data: v, error: e2 } = await supabase
+    .from('videos')
+    .insert({
+      owner_id: userId,
+      title: opts.title ?? file.name,
+      storage_path: key,
+      visibility: opts.visibility ?? 'unlisted',
+      duration_s: opts.durationS ? Math.round(opts.durationS) : null,
+      size_bytes: file.size,
+    })
+    .select('id')
+    .single()
+  if (e2) throw e2
+  return { videoId: v.id, url: publicUrl, storagePath: key }
+}
+
+/** Picks the configured storage backend (R2 or Supabase) for class-video uploads. */
+export async function uploadClassVideoSmart(
+  file: File,
+  userId: string,
+  opts: { title?: string; visibility?: string; durationS?: number; onProgress?: (pct: number) => void } = {},
+): Promise<{ videoId: string; url: string; storagePath: string }> {
+  if (import.meta.env.VITE_STORAGE_BACKEND === 'r2') return uploadClassVideoR2(file, userId, opts)
+  return uploadClassVideo(file, userId, opts)
+}
+
+/** Uploads a JPEG thumbnail blob and returns its public URL. */
+export async function uploadThumb(blob: Blob, userId: string): Promise<string> {
+  const path = `${userId}/thumbs/${crypto.randomUUID()}.jpg`
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
+    contentType: 'image/jpeg',
+    upsert: false,
+  })
+  if (error) throw error
+  return publicVideoUrl(path)
+}
+
+/** Captures a JPEG frame from a video element at the given time. */
+export function captureFrame(video: HTMLVideoElement, time: number, maxW = 480): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const onSeeked = () => {
+      video.removeEventListener('seeked', onSeeked)
+      const scale = Math.min(1, maxW / video.videoWidth)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(video.videoWidth * scale)
+      canvas.height = Math.round(video.videoHeight * scale)
+      canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/jpeg', 0.7)
+    }
+    video.addEventListener('seeked', onSeeked)
+    video.currentTime = time
+  })
+}
+
+/** Loads a File into a temp video, captures a JPEG thumbnail at ~1s, uploads it, returns the public URL. */
+export async function generateThumbFromFile(file: File, userId: string): Promise<string | null> {
+  try {
+    const url = URL.createObjectURL(file)
+    const v = document.createElement('video')
+    v.src = url
+    v.muted = true
+    await new Promise<void>((res, rej) => {
+      v.onloadeddata = () => res()
+      v.onerror = () => rej(new Error('video load failed'))
+    })
+    const t = Math.min(1, (v.duration || 2) / 2)
+    const blob = await captureFrame(v, t)
+    URL.revokeObjectURL(url)
+    return await uploadThumb(blob, userId)
+  } catch {
+    return null
+  }
+}
+
+/** Reads a File's duration (seconds) via a temporary video element. */
+export function readVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => {
+      resolve(v.duration || 0)
+      URL.revokeObjectURL(v.src)
+    }
+    v.onerror = () => resolve(0)
+    v.src = URL.createObjectURL(file)
+  })
+}

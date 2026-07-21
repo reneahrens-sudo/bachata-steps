@@ -1,0 +1,57 @@
+@import 'tailwindcss';
+
+/* ---- Design tokens (dark, mobile-first) ---- */
+@theme {
+  --color-bg: #0f0f12;
+  --color-bg-soft: #17171c;
+  --color-card: #1b1b21;
+  --color-card-hover: #232329;
+  --color-border: #2b2b33;
+  --color-text: #e7e7ea;
+  --color-text-dim: #9a9aa3;
+  --color-accent: #ff2d78;
+  --color-accent-soft: #ff2d7822;
+  --color-accent-2: #a855f7;
+
+  --font-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* hide scrollbar for horizontal filter rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* safe-area helper for the bottom nav */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+.h-safe-nav {
+  height: calc(env(safe-area-inset-bottom) + 4.25rem);
+}
