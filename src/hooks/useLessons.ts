@@ -34,7 +34,11 @@ export function useLessons() {
         comboNames[c.lesson_id] = (c.combo_items ?? [])
           .sort((a, b) => a.position - b.position)
           .map((i) => i.move?.name)
-          .filter((n): n is string => !!n && !seen.has(n) && seen.add(n))
+          .filter((n): n is string => {
+            if (!n || seen.has(n)) return false
+            seen.add(n)
+            return true
+          })
       }
 
       return rows.map((l) => {
