@@ -7,8 +7,9 @@ type Hit = { id: string; name: string; category: string | null; level: number | 
 
 /**
  * Name input with live suggestions of existing moves (matched by name parts).
- * Lets you either assign the clip to an existing move (no duplicate) or create it
- * as a variation of one — or just type a fresh name for a brand-new move.
+ * - "→ Zuordnen": clip goes to the existing move (no new move) → name is irrelevant, show a chip.
+ * - "≈ Variante": a NEW move is created, marked as variation of the picked one → keep the user's
+ *   own name editable, just show a small "Variante von …" badge.
  */
 export function MoveNameField({
   value,
@@ -51,11 +52,12 @@ export function MoveNameField({
     }, 220)
   }
 
-  if (link) {
+  // Assigned to an existing move → no name needed, show a chip.
+  if (link?.mode === 'assign') {
     return (
       <div className="flex min-w-40 flex-1 items-center gap-2 rounded-lg border border-accent bg-accent-soft px-3 py-1.5 text-sm">
         <span className="text-accent">
-          {link.mode === 'assign' ? '→ zugeordnet:' : '≈ Variante von:'} <strong>{link.moveName}</strong>
+          → zugeordnet: <strong>{link.moveName}</strong>
         </span>
         <button type="button" onClick={onClearLink} className="ml-auto text-text-dim hover:text-red-400" title="Verknüpfung entfernen">
           ✕
@@ -69,14 +71,27 @@ export function MoveNameField({
       <input
         value={value}
         onChange={(e) => search(e.target.value)}
-        onFocus={() => hits.length && setOpen(true)}
+        onFocus={() => hits.length && !link && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
       />
-      {open && hits.length > 0 && (
+
+      {/* variation badge — name stays editable above */}
+      {link?.mode === 'variation' && (
+        <div className="mt-1 flex items-center gap-2 text-xs text-accent">
+          <span>
+            ≈ Variante von: <strong>{link.moveName}</strong>
+          </span>
+          <button type="button" onClick={onClearLink} className="text-text-dim hover:text-red-400" title="Variante-Verknüpfung entfernen">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {open && !link && hits.length > 0 && (
         <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-          <p className="border-b border-border px-3 py-1.5 text-[11px] text-text-dim">Bestehende Moves — zuordnen statt doppelt anlegen:</p>
+          <p className="border-b border-border px-3 py-1.5 text-[11px] text-text-dim">Bestehende Moves:</p>
           {hits.map((h) => (
             <div key={h.id} className="flex items-center gap-2 px-3 py-2 hover:bg-card-hover">
               <span className="min-w-0 flex-1 truncate text-sm">
@@ -100,7 +115,7 @@ export function MoveNameField({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { onLink({ mode: 'variation', moveId: h.id, moveName: h.name }); setOpen(false) }}
                 className="rounded-md border border-border px-2 py-1 text-xs font-medium text-text-dim hover:border-accent hover:text-accent"
-                title="Neuen Move anlegen, als Variante dieses Moves markiert"
+                title="Neuen Move mit eigenem Namen anlegen, als Variante dieses Moves markiert"
               >
                 ≈ Variante
               </button>

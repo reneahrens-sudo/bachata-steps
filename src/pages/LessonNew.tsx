@@ -368,7 +368,7 @@ export function LessonNew() {
                       link={s.link}
                       placeholder={`Move ${i + 1} – Name (tippen für Vorschläge)`}
                       onNameChange={(name) => updateSeg(i, { name })}
-                      onLink={(link) => updateSeg(i, { link, name: link.moveName })}
+                      onLink={(link) => updateSeg(i, link.mode === 'assign' ? { link, name: link.moveName } : { link })}
                       onClearLink={() => updateSeg(i, { link: null })}
                     />
                     <select value={s.category} onChange={(e) => updateSeg(i, { category: e.target.value })} className="rounded-lg border border-border bg-bg px-2 py-1.5 text-sm">
