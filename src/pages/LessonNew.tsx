@@ -248,7 +248,7 @@ export function LessonNew() {
   }
 
   const inputCls = 'w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-accent'
-  const nudgeBtn = 'rounded-md border border-border bg-bg px-2 py-1 text-xs font-medium text-text-dim hover:border-accent hover:text-accent'
+  const nudgeBtn = 'flex-1 rounded-md border border-border bg-bg py-2 text-xs font-medium text-text-dim hover:border-accent hover:text-accent'
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -341,20 +341,24 @@ export function LessonNew() {
                   </div>
 
                   {/* fine-tune start / end */}
-                  <div className="mb-2 grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-1">
-                      <span className="w-10 text-xs text-text-dim">Start</span>
-                      <button onClick={() => nudge(i, 'start', -2)} className={nudgeBtn}>−2s</button>
-                      <button onClick={() => nudge(i, 'start', -1)} className={nudgeBtn}>−1s</button>
-                      <button onClick={() => nudge(i, 'start', 1)} className={nudgeBtn}>+1s</button>
-                      <button onClick={() => nudge(i, 'start', 2)} className={nudgeBtn}>+2s</button>
+                  <div className="mb-2 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-11 shrink-0 text-xs text-text-dim">Start</span>
+                      <div className="flex flex-1 gap-1.5">
+                        <button onClick={() => nudge(i, 'start', -2)} className={nudgeBtn}>−2s</button>
+                        <button onClick={() => nudge(i, 'start', -1)} className={nudgeBtn}>−1s</button>
+                        <button onClick={() => nudge(i, 'start', 1)} className={nudgeBtn}>+1s</button>
+                        <button onClick={() => nudge(i, 'start', 2)} className={nudgeBtn}>+2s</button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-10 text-xs text-text-dim">Ende</span>
-                      <button onClick={() => nudge(i, 'end', -2)} className={nudgeBtn}>−2s</button>
-                      <button onClick={() => nudge(i, 'end', -1)} className={nudgeBtn}>−1s</button>
-                      <button onClick={() => nudge(i, 'end', 1)} className={nudgeBtn}>+1s</button>
-                      <button onClick={() => nudge(i, 'end', 2)} className={nudgeBtn}>+2s</button>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-11 shrink-0 text-xs text-text-dim">Ende</span>
+                      <div className="flex flex-1 gap-1.5">
+                        <button onClick={() => nudge(i, 'end', -2)} className={nudgeBtn}>−2s</button>
+                        <button onClick={() => nudge(i, 'end', -1)} className={nudgeBtn}>−1s</button>
+                        <button onClick={() => nudge(i, 'end', 1)} className={nudgeBtn}>+1s</button>
+                        <button onClick={() => nudge(i, 'end', 2)} className={nudgeBtn}>+2s</button>
+                      </div>
                     </div>
                   </div>
 
