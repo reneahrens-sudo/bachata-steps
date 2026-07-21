@@ -1,11 +1,63 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import type { Move, MoveUserData } from '../../lib/types'
 import { LEVEL_COLORS, categoryLabel } from '../../lib/constants'
 import { thumbFor } from './MediaPreview'
 import { StatusDots } from './StatusChips'
 
+function isVideoUrl(u: string | null | undefined): boolean {
+  return !!u && /\.(mp4|webm|mov)(\?|$)/i.test(u)
+}
+
+/** Autoplaying, looping, muted preview — only plays while the card is on screen. */
+function CardVideo({ move, poster }: { move: Move; poster: string | null }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const start = move.clip_start ?? 0
+  const end = move.clip_end ?? undefined
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) v.play().catch(() => {})
+        else v.pause()
+      },
+      { threshold: 0.25 },
+    )
+    io.observe(v)
+    const onLoaded = () => {
+      if (move.clip_start != null) v.currentTime = start
+    }
+    const onTime = () => {
+      if (end != null && v.currentTime >= end - 0.05) v.currentTime = start
+    }
+    v.addEventListener('loadedmetadata', onLoaded)
+    v.addEventListener('timeupdate', onTime)
+    return () => {
+      io.disconnect()
+      v.removeEventListener('loadedmetadata', onLoaded)
+      v.removeEventListener('timeupdate', onTime)
+    }
+  }, [start, end, move.media_url])
+
+  return (
+    <video
+      ref={ref}
+      src={move.media_url ?? undefined}
+      poster={poster ?? undefined}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+    />
+  )
+}
+
 export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
   const thumb = thumbFor(move)
+  const hasVideo = isVideoUrl(move.media_url)
   const levelColor = move.level ? LEVEL_COLORS[move.level] : 'var(--color-border)'
 
   return (
@@ -14,7 +66,9 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
       className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/60 hover:bg-card-hover"
     >
       <div className="relative bg-bg-soft" style={{ aspectRatio: '4/3' }}>
-        {thumb ? (
+        {hasVideo ? (
+          <CardVideo move={move} poster={thumb} />
+        ) : thumb ? (
           <img
             src={thumb}
             alt={move.name}
@@ -27,7 +81,6 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
           </div>
         )}
 
-        {/* level badge */}
         {move.level && (
           <span
             className="absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-full text-sm font-bold text-black shadow"

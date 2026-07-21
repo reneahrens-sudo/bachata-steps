@@ -212,6 +212,13 @@ export function LessonNew() {
       }
 
       setSaveMsg('Combo wird erstellt…')
+      let comboThumb: string | null = null
+      try {
+        const blob = await captureFrame(v, Math.min(1, duration / 2))
+        comboThumb = await uploadThumb(blob, user.id)
+      } catch {
+        /* thumbnail optional */
+      }
       const { data: combo, error: ce } = await supabase
         .from('moves')
         .insert({
@@ -220,6 +227,7 @@ export function LessonNew() {
           name: `${course.trim()} – ${lessonTitle}`,
           style,
           media_url: url,
+          thumb_url: comboThumb,
           clip_start: 0,
           clip_end: duration,
           lesson_id: lesson.id,
