@@ -6,13 +6,14 @@ import type { Lesson, Move } from '../lib/types'
 export function useLessons() {
   const { user } = useAuth()
   return useQuery({
-    queryKey: ['lessons', user?.id],
-    enabled: !!user,
+    // Re-fetch when auth state changes (a logged-in owner also sees their private lessons).
+    queryKey: ['lessons', user?.id ?? 'anon'],
     queryFn: async (): Promise<Array<Lesson & { count: number }>> => {
+      // No owner filter: RLS returns all lessons the viewer may see (shared/public + own),
+      // so classmates see shared lessons via the app link without an account.
       const { data, error } = await supabase
         .from('lessons')
         .select('*, moves(count)')
-        .eq('owner_id', user!.id)
         .order('position', { ascending: true })
         .order('created_at', { ascending: false })
       if (error) throw error

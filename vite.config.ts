@@ -27,9 +27,18 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: '/index.html',
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        // HTML is NOT precached: navigations go network-first so a new deploy is
+        // always picked up (no stale index referencing deleted asset hashes = no white screen).
+        globPatterns: ['**/*.{js,css,svg,png,woff2}'],
         runtimeCaching: [
+          {
+            urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: { cacheName: 'html-pages', networkTimeoutSeconds: 3, expiration: { maxEntries: 20 } },
+          },
           {
             urlPattern: /^https:\/\/i\.ytimg\.com\/.*/i,
             handler: 'CacheFirst',

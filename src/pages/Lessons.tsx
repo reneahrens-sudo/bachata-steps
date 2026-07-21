@@ -1,20 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useLessons } from '../hooks/useLessons'
-import { useAuth } from '../hooks/useAuth'
 
 export function Lessons() {
-  const { user } = useAuth()
   const { data: lessons = [], isLoading } = useLessons()
-
-  if (!user)
-    return (
-      <div className="py-20 text-center text-text-dim">
-        <p>Melde dich an, um Lessons zu verwalten.</p>
-        <Link to="/login" className="mt-2 inline-block font-medium text-accent">
-          Anmelden →
-        </Link>
-      </div>
-    )
 
   return (
     <div className="space-y-4">

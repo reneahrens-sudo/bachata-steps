@@ -5,6 +5,10 @@ import { supabase } from '../lib/supabase'
 type AuthState = {
   session: Session | null
   user: User | null
+  /** True for a silent anonymous session (no real account yet). */
+  isAnonymous: boolean
+  /** True only for a real (email) account. */
+  isRealUser: boolean
   loading: boolean
   signOut: () => Promise<void>
 }
@@ -12,6 +16,8 @@ type AuthState = {
 const AuthContext = createContext<AuthState>({
   session: null,
   user: null,
+  isAnonymous: false,
+  isRealUser: false,
   loading: true,
   signOut: async () => {},
 })
@@ -21,23 +27,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setLoading(false)
+    let cancelled = false
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        if (!cancelled) {
+          setSession(data.session)
+          setLoading(false)
+        }
+        return
+      }
+      // No session → try a silent anonymous session so uploads work without a login screen.
+      // If anonymous sign-ins are disabled in Supabase, this fails gracefully and the app
+      // stays logged-out (public content is still viewable).
+      const { data: anon } = await supabase.auth.signInAnonymously()
+      if (!cancelled) {
+        setSession(anon?.session ?? null)
+        setLoading(false)
+      }
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       setLoading(false)
     })
-    return () => sub.subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
   const signOut = async () => {
     await supabase.auth.signOut()
   }
 
+  const user = session?.user ?? null
+  const isAnonymous = !!user?.is_anonymous
+  const isRealUser = !!user && !user.is_anonymous
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, isAnonymous, isRealUser, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   )

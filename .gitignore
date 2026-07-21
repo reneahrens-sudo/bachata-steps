@@ -27,3 +27,6 @@ dist-ssr
 .env.local
 scripts/service-account.json
 moves.json
+
+# Claude Code lokale Einstellungen
+.claude/settings.local.json

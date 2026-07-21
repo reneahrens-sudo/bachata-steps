@@ -106,7 +106,7 @@ export function LessonNew() {
     try {
       const { videoId, url } = await uploadClassVideoSmart(file, user.id, {
         title: title.trim(),
-        visibility: 'unlisted',
+        visibility: 'public',
         durationS: duration,
       })
 
@@ -145,7 +145,7 @@ export function LessonNew() {
             clip_start: s.start,
             clip_end: s.end,
             lesson_id: lesson.id,
-            visibility: 'private',
+            visibility: 'public',
           })
           .select('id')
           .single()
@@ -166,7 +166,7 @@ export function LessonNew() {
           clip_start: 0,
           clip_end: duration,
           lesson_id: lesson.id,
-          visibility: 'private',
+          visibility: 'public',
         })
         .select('id')
         .single()

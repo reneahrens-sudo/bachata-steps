@@ -13,7 +13,7 @@ const desktopLinks = [
 ]
 
 export function AppShell() {
-  const { user, signOut } = useAuth()
+  const { isRealUser, signOut } = useAuth()
 
   return (
     <div className="min-h-svh">
@@ -51,7 +51,7 @@ export function AppShell() {
             >
               ＋ Neu
             </Link>
-            {user ? (
+            {isRealUser ? (
               <button
                 onClick={signOut}
                 className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-dim transition hover:text-text"
