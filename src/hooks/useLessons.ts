@@ -21,7 +21,25 @@ export function useLessons() {
       const rows = (data ?? []) as unknown as Array<
         Lesson & { moves: Array<{ name: string; kind: string; clip_start: number | null }> }
       >
+
+      // Combo-based move names (includes assigned/related moves), keyed by lesson_id.
+      const { data: combos } = await supabase
+        .from('moves')
+        .select('lesson_id, combo_items:combo_items!combo_items_combo_id_fkey(position, move:moves!combo_items_move_id_fkey(name))')
+        .eq('kind', 'combo')
+        .in('lesson_id', rows.map((l) => l.id))
+      const comboNames: Record<string, string[]> = {}
+      for (const c of (combos ?? []) as unknown as Array<{ lesson_id: string; combo_items: Array<{ position: number; move: { name: string } | null }> }>) {
+        const seen = new Set<string>()
+        comboNames[c.lesson_id] = (c.combo_items ?? [])
+          .sort((a, b) => a.position - b.position)
+          .map((i) => i.move?.name)
+          .filter((n): n is string => !!n && !seen.has(n) && seen.add(n))
+      }
+
       return rows.map((l) => {
+        const fromCombo = comboNames[l.id]
+        if (fromCombo && fromCombo.length) return { ...l, count: fromCombo.length, moveNames: fromCombo }
         const mv = (l.moves ?? [])
           .filter((m) => m.kind === 'move')
           .sort((a, b) => (a.clip_start ?? 0) - (b.clip_start ?? 0))
@@ -73,9 +91,25 @@ export function useLesson(id: string | undefined) {
           .eq('combo_id', combo.id)
           .order('position', { ascending: true })
         const seen = new Set<string>()
-        moves = ((items ?? []) as unknown as Array<{ move: Move }>)
+        const stepMoves = ((items ?? []) as unknown as Array<{ move: Move }>)
           .map((i) => i.move)
           .filter((m) => m && !seen.has(m.id) && seen.add(m.id))
+
+        // For assigned moves, show THIS class's own clip (the move_media that uses the
+        // same class video), not the move's original/primary clip from another class.
+        const classClips: Record<string, { media_url: string | null; thumb_url: string | null; clip_start: number | null; clip_end: number | null }> = {}
+        if (combo.media_url && stepMoves.length) {
+          const { data: mm } = await supabase
+            .from('move_media')
+            .select('move_id, media_url, thumb_url, clip_start, clip_end')
+            .in('move_id', stepMoves.map((m) => m.id))
+            .eq('media_url', combo.media_url)
+          for (const c of mm ?? []) if (!classClips[c.move_id]) classClips[c.move_id] = c
+        }
+        moves = stepMoves.map((m) => {
+          const c = classClips[m.id]
+          return c ? { ...m, media_url: c.media_url, thumb_url: c.thumb_url, clip_start: c.clip_start, clip_end: c.clip_end } : m
+        })
       } else {
         const { data: m } = await supabase
           .from('moves')
