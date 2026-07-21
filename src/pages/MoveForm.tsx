@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { extractYouTubeId } from '../lib/youtube'
@@ -15,6 +16,7 @@ export function MoveForm() {
   const comboParam = searchParams.get('combo')
   const editing = !!id
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { user } = useAuth()
 
   const [kind, setKind] = useState<'move' | 'combo'>(presetKind)
@@ -160,6 +162,11 @@ export function MoveForm() {
             comboMoves.map((m, i) => ({ combo_id: moveId!, move_id: m.id, position: i })),
           )
         }
+      }
+
+      // refresh caches so the edited move + its relationships show immediately
+      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['related']]) {
+        qc.invalidateQueries({ queryKey: key })
       }
 
       // append this new move to an existing combo (from ?combo=)

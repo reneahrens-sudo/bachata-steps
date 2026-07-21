@@ -11,7 +11,8 @@ import { StatusChips } from '../components/moves/StatusChips'
 import { CollectionPicker } from '../components/collections/CollectionPicker'
 import { LEVEL_COLORS, categoryLabel, styleLabel } from '../lib/constants'
 import { useAuth } from '../hooks/useAuth'
-import type { SourceLink } from '../lib/types'
+import { MoveCard } from '../components/moves/MoveCard'
+import type { Move, SourceLink } from '../lib/types'
 
 export function MoveDetail() {
   const { id } = useParams()
@@ -24,15 +25,15 @@ export function MoveDetail() {
   const delMedia = useDeleteMoveMedia(id ?? '')
   const saveNotes = useSaveNotes()
 
-  const { data: related } = useQuery({
-    queryKey: ['related', id, move?.variation_of],
+  // The "family" of a move = its base + all variations of that base (excluding itself),
+  // so any move in the group shows the whole set — great for comparing variations.
+  const { data: family = [] } = useQuery({
+    queryKey: ['family', move?.id, move?.variation_of],
     enabled: !!move,
-    queryFn: async () => {
-      const base = move!.variation_of
-        ? (await supabase.from('moves').select('id,name').eq('id', move!.variation_of).maybeSingle()).data
-        : null
-      const vars = (await supabase.from('moves').select('id,name').eq('variation_of', id!).limit(20)).data ?? []
-      return { base, vars: vars as Array<{ id: string; name: string }> }
+    queryFn: async (): Promise<Move[]> => {
+      const baseId = move!.variation_of ?? move!.id
+      const { data } = await supabase.from('moves').select('*').or(`id.eq.${baseId},variation_of.eq.${baseId}`)
+      return ((data ?? []) as Move[]).filter((m) => m.id !== move!.id)
     },
   })
 
@@ -143,27 +144,25 @@ export function MoveDetail() {
         </div>
       )}
 
-      {/* related / variations */}
-      {(related?.base || (related?.vars.length ?? 0) > 0) && (
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="mb-2 text-sm font-semibold text-text-dim">Verwandte Moves</h2>
-          {related?.base && (
-            <p className="text-sm">
-              ≈ Variante von{' '}
-              <Link to={`/move/${related.base.id}`} className="text-accent">
-                {related.base.name}
-              </Link>
-            </p>
-          )}
-          {related?.vars.map((rv) => (
-            <p key={rv.id} className="text-sm">
-              ↳{' '}
-              <Link to={`/move/${rv.id}`} className="text-accent">
-                {rv.name}
-              </Link>
-            </p>
-          ))}
-        </div>
+      {/* related moves & variations — the whole family, as comparable preview cards */}
+      {family.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-text-dim">
+            <span>🔗</span> Verwandte Moves &amp; Varianten ({family.length})
+          </h2>
+          <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4">
+            {family.map((m) => (
+              <div key={m.id} className="relative w-40 shrink-0">
+                {move.variation_of && m.id === move.variation_of && (
+                  <span className="absolute left-2 top-2 z-10 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    Basis
+                  </span>
+                )}
+                <MoveCard move={m} data={myData?.[m.id]} />
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* notes */}
