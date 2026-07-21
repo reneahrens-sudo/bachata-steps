@@ -172,18 +172,33 @@ export function LessonNew() {
           /* thumbnail optional */
         }
 
-        // Assign to an existing move → add this clip as an extra video, no new move.
+        // Assign to an existing move → no new move. If that move has no video yet, this
+        // clip becomes its MAIN video (so it previews everywhere); otherwise an extra video.
         if (s.link?.mode === 'assign') {
-          const { error: mme } = await supabase.from('move_media').insert({
-            move_id: s.link.moveId,
-            owner_id: user.id,
-            label: lessonLabel,
-            media_url: url,
-            thumb_url: thumbUrl,
-            clip_start: s.start,
-            clip_end: s.end,
-          })
-          if (mme) throw mme
+          const { data: tgt } = await supabase
+            .from('moves')
+            .select('media_url, youtube_id, owner_id')
+            .eq('id', s.link.moveId)
+            .single()
+          const hasPrimary = !!(tgt && (tgt.media_url || tgt.youtube_id))
+          if (!hasPrimary && tgt?.owner_id === user.id) {
+            const { error: ue } = await supabase
+              .from('moves')
+              .update({ media_url: url, thumb_url: thumbUrl, clip_start: s.start, clip_end: s.end })
+              .eq('id', s.link.moveId)
+            if (ue) throw ue
+          } else {
+            const { error: mme } = await supabase.from('move_media').insert({
+              move_id: s.link.moveId,
+              owner_id: user.id,
+              label: lessonLabel,
+              media_url: url,
+              thumb_url: thumbUrl,
+              clip_start: s.start,
+              clip_end: s.end,
+            })
+            if (mme) throw mme
+          }
           moveIds.push(s.link.moveId)
           continue
         }

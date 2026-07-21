@@ -1,13 +1,35 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../../lib/supabase'
 import { useAddMoveMedia } from '../../hooks/useMoveMedia'
 import { extractYouTubeId } from '../../lib/youtube'
 import { useAuth } from '../../hooks/useAuth'
 import { uploadClassVideoSmart, generateThumbFromFile } from '../../lib/storage'
 
-/** Add an extra teaching video/source to a move: a link (YouTube/URL) or an uploaded file. */
+/** Add a teaching video/source to a move: a link (YouTube/URL) or an uploaded file. */
 export function AddVideoForm({ moveId }: { moveId: string }) {
   const { user } = useAuth()
+  const qc = useQueryClient()
   const add = useAddMoveMedia()
+
+  // If the move has no video yet (and you own it), the added clip becomes its MAIN video
+  // (so it previews everywhere); otherwise it's stored as an extra video.
+  const attach = async (fields: { youtube_id?: string | null; media_url?: string | null; thumb_url?: string | null; label?: string | null; source_url?: string | null }) => {
+    const { data: tgt } = await supabase.from('moves').select('media_url, youtube_id, owner_id').eq('id', moveId).single()
+    const hasPrimary = !!(tgt && (tgt.media_url || tgt.youtube_id))
+    if (!hasPrimary && tgt?.owner_id === user?.id) {
+      const { error } = await supabase
+        .from('moves')
+        .update({ media_url: fields.media_url ?? null, youtube_id: fields.youtube_id ?? null, thumb_url: fields.thumb_url ?? null })
+        .eq('id', moveId)
+      if (error) throw error
+      qc.invalidateQueries({ queryKey: ['move', moveId] })
+      qc.invalidateQueries({ queryKey: ['move_media', moveId] })
+      qc.invalidateQueries({ queryKey: ['moves'] })
+    } else {
+      await add.mutateAsync({ move_id: moveId, owner_id: user?.id, ...fields })
+    }
+  }
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'link' | 'file'>('link')
   const [url, setUrl] = useState('')
@@ -36,9 +58,7 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
       return
     }
     try {
-      await add.mutateAsync({
-        move_id: moveId,
-        owner_id: user?.id,
+      await attach({
         label: label.trim() || null,
         youtube_id: yt,
         media_url: yt ? null : u,
@@ -58,9 +78,7 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
       const { url: mediaUrl } = await uploadClassVideoSmart(file, user.id, { title: label.trim() || file.name })
       setBusy('Vorschaubild wird erstellt…')
       const thumb = await generateThumbFromFile(file, user.id)
-      await add.mutateAsync({
-        move_id: moveId,
-        owner_id: user.id,
+      await attach({
         label: label.trim() || null,
         media_url: mediaUrl,
         thumb_url: thumb,
