@@ -69,7 +69,7 @@ export function useLesson(id: string | undefined) {
         // assigned to an existing/catalog move, which have no lesson_id of their own).
         const { data: items } = await supabase
           .from('combo_items')
-          .select('position, move:moves(*)')
+          .select('position, move:moves!combo_items_move_id_fkey(*)')
           .eq('combo_id', combo.id)
           .order('position', { ascending: true })
         const seen = new Set<string>()
