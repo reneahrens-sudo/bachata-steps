@@ -4,7 +4,7 @@ const items = [
   { to: '/', label: 'Start', icon: '🏠', end: true },
   { to: '/katalog', label: 'Katalog', icon: '🔍' },
   { to: '/neu', label: 'Neu', icon: '＋', primary: true },
-  { to: '/lessons', label: 'Lessons', icon: '🎬' },
+  { to: '/lessons', label: 'Classes', icon: '🎬' },
   { to: '/profil', label: 'Profil', icon: '👤' },
 ]
 

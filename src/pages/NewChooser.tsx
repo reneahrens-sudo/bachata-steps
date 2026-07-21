@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 const options = [
   { to: '/move/neu', icon: '💃', title: 'Einzel-Move', desc: 'Einen Move mit Video/Link, Kategorie & Level anlegen' },
   { to: '/move/neu?kind=combo', icon: '🎬', title: 'Combo', desc: 'Eine Kombination aus mehreren Moves zusammenstellen' },
-  { to: '/lessons/neu', icon: '📹', title: 'Lesson aus Video', desc: 'Klassenvideo hochladen und in einzelne Moves zerlegen' },
+  { to: '/lessons/neu', icon: '📹', title: 'Class aus Video', desc: 'Klassenvideo hochladen, nach Course & Lesson ordnen, in Moves zerlegen' },
 ]
 
 export function NewChooser() {

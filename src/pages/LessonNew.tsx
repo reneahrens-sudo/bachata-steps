@@ -11,20 +11,25 @@ type Seg = Segment & { name: string; category: string; level: number | '' }
 function fmt(t: number) {
   const m = Math.floor(t / 60)
   const s = Math.floor(t % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+  const cs = Math.round((t % 1) * 10)
+  return `${m}:${s.toString().padStart(2, '0')}.${cs}`
 }
+
+const SPEEDS = [0.25, 0.5, 1] as const
 
 export function LessonNew() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  const [title, setTitle] = useState('')
+  const [course, setCourse] = useState('')
+  const [lessonNumber, setLessonNumber] = useState<number | ''>('')
   const [school, setSchool] = useState('')
   const [style, setStyle] = useState('bachata')
   const [file, setFile] = useState<File | null>(null)
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
+  const [speed, setSpeed] = useState(1)
   const [segs, setSegs] = useState<Seg[]>([])
   const [markStart, setMarkStart] = useState<number | null>(null)
   const [detecting, setDetecting] = useState(false)
@@ -35,7 +40,7 @@ export function LessonNew() {
   if (!user)
     return (
       <div className="py-20 text-center text-text-dim">
-        <p>Melde dich an, um Lessons anzulegen.</p>
+        <p>Melde dich an, um eine Class anzulegen.</p>
         <button onClick={() => navigate('/login')} className="mt-2 font-medium text-accent">
           Anmelden →
         </button>
@@ -52,6 +57,11 @@ export function LessonNew() {
   }
 
   const now = () => videoRef.current?.currentTime ?? 0
+
+  const setSpeedAll = (sp: number) => {
+    setSpeed(sp)
+    if (videoRef.current) videoRef.current.playbackRate = sp
+  }
 
   const addSegment = () => {
     if (markStart == null) {
@@ -82,9 +92,26 @@ export function LessonNew() {
   const updateSeg = (i: number, patch: Partial<Seg>) =>
     setSegs((s) => s.map((seg, idx) => (idx === i ? { ...seg, ...patch } : seg)))
 
+  /** Nudge a segment's start or end by delta seconds, keeping start < end within bounds. */
+  const nudge = (i: number, field: 'start' | 'end', delta: number) => {
+    setSegs((s) =>
+      s.map((seg, idx) => {
+        if (idx !== i) return seg
+        let v = +(seg[field] + delta).toFixed(2)
+        if (field === 'start') v = Math.max(0, Math.min(v, seg.end - 0.2))
+        else v = Math.min(duration || seg.end + delta, Math.max(v, seg.start + 0.2))
+        // jump the preview to the changed edge so you see it
+        if (videoRef.current) videoRef.current.currentTime = v
+        return { ...seg, [field]: v }
+      }),
+    )
+  }
+
+  /** Play just this segment (respects the selected slow-motion speed). */
   const play = (s: Seg) => {
     const v = videoRef.current
     if (!v) return
+    v.playbackRate = speed
     v.currentTime = s.start
     v.play()
     const stop = () => {
@@ -97,28 +124,34 @@ export function LessonNew() {
   }
 
   const save = async () => {
-    if (!file || !title.trim() || !segs.length) {
-      setSaveMsg('Bitte Titel, Video und mindestens ein Segment angeben.')
+    if (!file || !course.trim() || lessonNumber === '' || !segs.length) {
+      setSaveMsg('Bitte Course, Lesson-Nr, Video und mindestens ein Segment angeben.')
       return
     }
+    const lessonTitle = `Lesson ${lessonNumber}`
     setSaving(true)
     setSaveMsg('Video wird hochgeladen…')
     try {
       const { videoId, url } = await uploadClassVideoSmart(file, user.id, {
-        title: title.trim(),
+        title: `${course.trim()} – ${lessonTitle}`,
         visibility: 'public',
         durationS: duration,
       })
 
-      // lesson
       const { data: lesson, error: le } = await supabase
         .from('lessons')
-        .insert({ owner_id: user.id, title: title.trim(), school: school.trim() || null, video_id: videoId })
+        .insert({
+          owner_id: user.id,
+          title: lessonTitle,
+          course: course.trim(),
+          lesson_number: Number(lessonNumber),
+          school: school.trim() || null,
+          video_id: videoId,
+        })
         .select('id')
         .single()
       if (le) throw le
 
-      // thumbnails + move rows
       const v = videoRef.current!
       const moveIds: string[] = []
       for (let i = 0; i < segs.length; i++) {
@@ -136,7 +169,7 @@ export function LessonNew() {
           .insert({
             owner_id: user.id,
             kind: 'move',
-            name: s.name.trim() || `${title.trim()} – Move ${i + 1}`,
+            name: s.name.trim() || `${course.trim()} L${lessonNumber} – Move ${i + 1}`,
             style,
             category: s.category || null,
             level: s.level === '' ? null : Number(s.level),
@@ -153,14 +186,13 @@ export function LessonNew() {
         moveIds.push(move.id)
       }
 
-      // combo for the whole lesson
       setSaveMsg('Combo wird erstellt…')
       const { data: combo, error: ce } = await supabase
         .from('moves')
         .insert({
           owner_id: user.id,
           kind: 'combo',
-          name: title.trim(),
+          name: `${course.trim()} – ${lessonTitle}`,
           style,
           media_url: url,
           clip_start: 0,
@@ -183,51 +215,69 @@ export function LessonNew() {
   }
 
   const inputCls = 'w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-accent'
+  const nudgeBtn = 'rounded-md border border-border bg-bg px-2 py-1 text-xs font-medium text-text-dim hover:border-accent hover:text-accent'
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-2xl font-bold">Neue Lesson aus Video</h1>
+      <h1 className="text-2xl font-bold">Neue Class aus Video</h1>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input placeholder="Schule, z.B. ICB" value={school} onChange={(e) => setSchool(e.target.value)} className={inputCls} />
-        <input placeholder="Titel, z.B. Lesson 1" value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+        <input placeholder="Course, z.B. Foundations 1" value={course} onChange={(e) => setCourse(e.target.value)} className={inputCls} />
+        <input
+          type="number"
+          min={1}
+          placeholder="Lesson-Nr, z.B. 4"
+          value={lessonNumber}
+          onChange={(e) => setLessonNumber(e.target.value === '' ? '' : Number(e.target.value))}
+          className={inputCls}
+        />
       </div>
-      <select value={style} onChange={(e) => setStyle(e.target.value)} className={inputCls}>
-        {STYLES.map((s) => (
-          <option key={s.key} value={s.key}>
-            {s.label}
-          </option>
-        ))}
-      </select>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <input placeholder="Schule (optional), z.B. ICB" value={school} onChange={(e) => setSchool(e.target.value)} className={inputCls} />
+        <select value={style} onChange={(e) => setStyle(e.target.value)} className={inputCls}>
+          {STYLES.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {!fileUrl ? (
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border p-10 text-center text-text-dim transition hover:border-accent">
           <span className="text-4xl">🎬</span>
           <span className="font-medium">Klassenvideo auswählen</span>
           <span className="text-xs">MP4 empfohlen (iPhone: „Kompatibelste" aufnehmen)</span>
-          <input
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])}
-          />
+          <input type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])} />
         </label>
       ) : (
         <>
           <video ref={videoRef} src={fileUrl} controls playsInline className="w-full rounded-2xl bg-black" style={{ maxHeight: '60vh' }} />
 
+          {/* speed / slow-motion */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-text-dim">Tempo:</span>
+            {SPEEDS.map((sp) => (
+              <button
+                key={sp}
+                onClick={() => setSpeedAll(sp)}
+                className="rounded-lg border px-3 py-1.5 font-medium transition"
+                style={{
+                  borderColor: speed === sp ? 'var(--color-accent)' : 'var(--color-border)',
+                  background: speed === sp ? 'var(--color-accent-soft)' : 'transparent',
+                  color: speed === sp ? 'var(--color-accent)' : 'var(--color-text-dim)',
+                }}
+              >
+                {sp === 1 ? 'Normal' : `${sp}× 🐢`}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={addSegment}
-              className="rounded-xl border border-accent bg-accent-soft px-4 py-2.5 font-medium text-accent"
-            >
+            <button onClick={addSegment} className="rounded-xl border border-accent bg-accent-soft px-4 py-2.5 font-medium text-accent">
               {markStart == null ? '⏺ Segment-Start setzen' : `⏹ Ende setzen (Start ${fmt(markStart)})`}
             </button>
-            <button
-              onClick={autoDetect}
-              disabled={detecting}
-              className="rounded-xl border border-border bg-card px-4 py-2.5 font-medium disabled:opacity-60"
-            >
+            <button onClick={autoDetect} disabled={detecting} className="rounded-xl border border-border bg-card px-4 py-2.5 font-medium disabled:opacity-60">
               {detecting ? `Analysiere… ${detectPct}%` : '✨ Pausen automatisch erkennen'}
             </button>
           </div>
@@ -238,16 +288,36 @@ export function LessonNew() {
               {segs.map((s, i) => (
                 <div key={i} className="rounded-xl border border-border bg-card p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm">
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
-                      {i + 1}
-                    </span>
-                    <button onClick={() => play(s)} className="text-accent">
-                      ▶ {fmt(s.start)}–{fmt(s.end)}
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">{i + 1}</span>
+                    <button onClick={() => play(s)} className="rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-white">
+                      ▶ Abspielen
                     </button>
+                    <span className="text-xs text-text-dim">
+                      {fmt(s.start)} – {fmt(s.end)} ({(s.end - s.start).toFixed(1)}s)
+                    </span>
                     <button onClick={() => setSegs((x) => x.filter((_, idx) => idx !== i))} className="ml-auto text-text-dim hover:text-red-400">
                       ✕
                     </button>
                   </div>
+
+                  {/* fine-tune start / end */}
+                  <div className="mb-2 grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="w-10 text-xs text-text-dim">Start</span>
+                      <button onClick={() => nudge(i, 'start', -2)} className={nudgeBtn}>−2s</button>
+                      <button onClick={() => nudge(i, 'start', -1)} className={nudgeBtn}>−1s</button>
+                      <button onClick={() => nudge(i, 'start', 1)} className={nudgeBtn}>+1s</button>
+                      <button onClick={() => nudge(i, 'start', 2)} className={nudgeBtn}>+2s</button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-10 text-xs text-text-dim">Ende</span>
+                      <button onClick={() => nudge(i, 'end', -2)} className={nudgeBtn}>−2s</button>
+                      <button onClick={() => nudge(i, 'end', -1)} className={nudgeBtn}>−1s</button>
+                      <button onClick={() => nudge(i, 'end', 1)} className={nudgeBtn}>+1s</button>
+                      <button onClick={() => nudge(i, 'end', 2)} className={nudgeBtn}>+2s</button>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-2">
                     <input
                       value={s.name}
@@ -277,19 +347,13 @@ export function LessonNew() {
             </div>
           )}
 
-          <button
-            onClick={save}
-            disabled={saving || !segs.length}
-            className="w-full rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-60"
-          >
-            {saving ? 'Speichert…' : `Lesson speichern (${segs.length} Moves + Combo)`}
+          <button onClick={save} disabled={saving || !segs.length} className="w-full rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-60">
+            {saving ? 'Speichert…' : `Class speichern (${segs.length} Moves + Combo)`}
           </button>
         </>
       )}
 
-      {saveMsg && (
-        <p className={`text-center text-sm ${saveMsg.startsWith('Fehler') ? 'text-red-400' : 'text-text-dim'}`}>{saveMsg}</p>
-      )}
+      {saveMsg && <p className={`text-center text-sm ${saveMsg.startsWith('Fehler') ? 'text-red-400' : 'text-text-dim'}`}>{saveMsg}</p>}
     </div>
   )
 }

@@ -63,6 +63,8 @@ export type Database = {
           owner_id: string
           title: string
           school: string | null
+          course: string | null
+          lesson_number: number | null
           position: number | null
           video_id: string | null
           notes: string | null
@@ -73,6 +75,8 @@ export type Database = {
           owner_id: string
           title: string
           school?: string | null
+          course?: string | null
+          lesson_number?: number | null
           position?: number | null
           video_id?: string | null
           notes?: string | null
@@ -83,6 +87,8 @@ export type Database = {
           owner_id?: string
           title?: string
           school?: string | null
+          course?: string | null
+          lesson_number?: number | null
           position?: number | null
           video_id?: string | null
           notes?: string | null

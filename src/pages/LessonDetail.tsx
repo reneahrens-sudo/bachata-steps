@@ -37,8 +37,15 @@ export function LessonDetail() {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          {data.lesson.school && <p className="text-sm text-text-dim">🏫 {data.lesson.school}</p>}
-          <h1 className="text-2xl font-bold">{data.lesson.title}</h1>
+          {(data.lesson.course || data.lesson.school) && (
+            <p className="text-sm text-text-dim">
+              {data.lesson.school ? `🏫 ${data.lesson.school} · ` : ''}
+              {data.lesson.course ? `📚 ${data.lesson.course}` : ''}
+            </p>
+          )}
+          <h1 className="text-2xl font-bold">
+            {data.lesson.lesson_number != null ? `Lesson ${data.lesson.lesson_number}` : data.lesson.title}
+          </h1>
         </div>
         <button
           onClick={() => confirm('Lesson mit allen Moves löschen?') && del.mutate()}

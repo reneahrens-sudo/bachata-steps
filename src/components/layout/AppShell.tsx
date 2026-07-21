@@ -5,7 +5,7 @@ import { BottomNav } from './BottomNav'
 const desktopLinks = [
   { to: '/', label: 'Start', end: true },
   { to: '/katalog', label: 'Katalog' },
-  { to: '/lessons', label: 'Lessons' },
+  { to: '/lessons', label: 'Classes' },
   { to: '/sammlungen', label: 'Sammlungen' },
   { to: '/entdecken', label: 'Entdecken' },
   { to: '/import', label: 'Import' },

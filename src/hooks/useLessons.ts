@@ -14,7 +14,8 @@ export function useLessons() {
       const { data, error } = await supabase
         .from('lessons')
         .select('*, moves(count)')
-        .order('position', { ascending: true })
+        .order('course', { ascending: true })
+        .order('lesson_number', { ascending: true })
         .order('created_at', { ascending: false })
       if (error) throw error
       const rows = (data ?? []) as unknown as Array<Lesson & { moves: Array<{ count: number }> }>
