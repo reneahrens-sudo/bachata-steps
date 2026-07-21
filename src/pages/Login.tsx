@@ -47,13 +47,6 @@ export function Login() {
     }
   }
 
-  const google = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    })
-  }
-
   return (
     <div className="mx-auto max-w-sm py-10">
       <div className="mb-6 text-center">
@@ -62,17 +55,6 @@ export function Login() {
           Bachata<span className="text-accent">Steps</span>
         </h1>
         <p className="mt-1 text-sm text-text-dim">Deine Moves. Deine Combos. Dein Fortschritt.</p>
-      </div>
-
-      <button
-        onClick={google}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 font-medium transition hover:bg-card-hover"
-      >
-        <span>🔵</span> Mit Google anmelden
-      </button>
-
-      <div className="my-4 flex items-center gap-3 text-xs text-text-dim">
-        <div className="h-px flex-1 bg-border" /> oder <div className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={submit} className="space-y-3">
