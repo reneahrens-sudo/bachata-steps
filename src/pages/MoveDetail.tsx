@@ -56,21 +56,27 @@ export function MoveDetail() {
 
       <MediaGallery sources={sources} name={move.name} />
 
-      {isOwner && (
+      {user && (
         <div className="space-y-2">
           <AddVideoForm moveId={move.id} />
+          {/* extra videos (not the primary) — deletable by their uploader or the move owner */}
           {sources.filter((s) => s.id !== move.id).length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {sources
                 .filter((s) => s.id !== move.id)
-                .map((s) => (
-                  <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs text-text-dim">
-                    {s.label ?? 'Video'}
-                    <button onClick={() => delMedia.mutate(s.id)} className="text-text-dim hover:text-red-400" title="Entfernen">
-                      ✕
-                    </button>
-                  </span>
-                ))}
+                .map((s) => {
+                  const canDelete = isOwner || s.owner_id === user.id
+                  return (
+                    <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs text-text-dim">
+                      🎬 {s.label ?? 'Video'}
+                      {canDelete && (
+                        <button onClick={() => delMedia.mutate(s.id)} className="text-text-dim hover:text-red-400" title="Dieses Zusatzvideo entfernen">
+                          ✕
+                        </button>
+                      )}
+                    </span>
+                  )
+                })}
             </div>
           )}
         </div>

@@ -353,6 +353,7 @@ export type MediaSource = {
   clip_start: number | null
   clip_end: number | null
   source_url?: string | null
+  owner_id?: string | null
 }
 
 export type SourceLink = { label: string; url: string }

@@ -72,6 +72,19 @@ export function LessonEdit() {
   const del = async () => {
     if (!confirm('Diese Class mit allen Moves löschen?')) return
     setBusy(true)
+    // Find this class's video, so we can also offer to remove clips that were assigned
+    // from it to OTHER moves (as extra videos).
+    const { data: combo } = await supabase.from('moves').select('media_url').eq('lesson_id', id!).eq('kind', 'combo').maybeSingle()
+    const videoUrl = combo?.media_url
+    if (videoUrl) {
+      const { count } = await supabase
+        .from('move_media')
+        .select('*', { count: 'exact', head: true })
+        .eq('media_url', videoUrl)
+      if ((count ?? 0) > 0 && confirm(`In anderen Moves gibt es ${count} zugeordnete Videoausschnitte aus dieser Class. Diese auch entfernen?`)) {
+        await supabase.from('move_media').delete().eq('media_url', videoUrl)
+      }
+    }
     await supabase.from('moves').delete().eq('lesson_id', id!)
     await supabase.from('lessons').delete().eq('id', id!)
     navigate('/lessons')

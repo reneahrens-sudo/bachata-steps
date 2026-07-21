@@ -19,7 +19,7 @@ export function useMoveSources(move: Move | null | undefined) {
 
       const sources: MediaSource[] = []
       const primary = moveToSource(move!)
-      if (primary.youtube_id || primary.media_url) sources.push({ ...primary, label: 'Original' })
+      if (primary.youtube_id || primary.media_url) sources.push({ ...primary, label: 'Original', owner_id: move!.owner_id })
       for (const m of data ?? []) {
         sources.push({
           id: m.id,
@@ -30,6 +30,7 @@ export function useMoveSources(move: Move | null | undefined) {
           clip_start: m.clip_start,
           clip_end: m.clip_end,
           source_url: m.source_url,
+          owner_id: m.owner_id,
         })
       }
       return sources
