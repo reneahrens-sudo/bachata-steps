@@ -38,6 +38,7 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
     try {
       await add.mutateAsync({
         move_id: moveId,
+        owner_id: user?.id,
         label: label.trim() || null,
         youtube_id: yt,
         media_url: yt ? null : u,
@@ -59,6 +60,7 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
       const thumb = await generateThumbFromFile(file, user.id)
       await add.mutateAsync({
         move_id: moveId,
+        owner_id: user.id,
         label: label.trim() || null,
         media_url: mediaUrl,
         thumb_url: thumb,

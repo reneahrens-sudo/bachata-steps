@@ -57,6 +57,60 @@ export function MoveForm() {
     setRelHits(((data ?? []) as { id: string; name: string }[]).filter((h) => h.id !== id))
   }
 
+  const [mergeQuery, setMergeQuery] = useState('')
+  const [mergeHits, setMergeHits] = useState<{ id: string; name: string }[]>([])
+  const searchMerge = async (q: string) => {
+    setMergeQuery(q)
+    const words = q.trim().split(/\s+/).filter((w) => w.length >= 2)
+    if (!words.length) { setMergeHits([]); return }
+    const orf = words.map((w) => `name.ilike.%${w.replace(/[%,()]/g, '')}%`).join(',')
+    const { data } = await supabase.from('moves').select('id,name').eq('kind', 'move').or(orf).limit(6)
+    setMergeHits(((data ?? []) as { id: string; name: string }[]).filter((h) => h.id !== id))
+  }
+
+  // Merge this move into an existing one: its clip(s) become extra videos on the target,
+  // combo/collection references are repointed, then this (duplicate) move is deleted.
+  const mergeInto = async (targetId: string, targetName: string) => {
+    if (!id || !user || !confirm(`Diesen Move mit „${targetName}" zusammenführen? Der Ausschnitt wird als weiteres Video übernommen, dieser doppelte Move entfernt.`)) return
+    setBusy(true)
+    setErr(null)
+    try {
+      const { data: self } = await supabase.from('moves').select('*').eq('id', id).single()
+      if (self && (self.media_url || self.youtube_id)) {
+        await supabase.from('move_media').insert({
+          move_id: targetId,
+          owner_id: user.id,
+          label: self.name,
+          media_url: self.media_url,
+          youtube_id: self.youtube_id,
+          thumb_url: self.thumb_url,
+          clip_start: self.clip_start,
+          clip_end: self.clip_end,
+        })
+      }
+      await supabase.from('move_media').update({ move_id: targetId }).eq('move_id', id)
+      await supabase.from('combo_items').update({ move_id: targetId }).eq('move_id', id)
+      const { data: cis } = await supabase.from('collection_items').select('id, collection_id').eq('move_id', id)
+      for (const ci of cis ?? []) {
+        const { count } = await supabase
+          .from('collection_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('collection_id', ci.collection_id)
+          .eq('move_id', targetId)
+        if (count && count > 0) await supabase.from('collection_items').delete().eq('id', ci.id)
+        else await supabase.from('collection_items').update({ move_id: targetId }).eq('id', ci.id)
+      }
+      await supabase.from('moves').delete().eq('id', id)
+      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['collections'], ['lessons']]) {
+        qc.invalidateQueries({ queryKey: key })
+      }
+      navigate(`/move/${targetId}`)
+    } catch (e) {
+      setErr((e as Error).message)
+      setBusy(false)
+    }
+  }
+
   useEffect(() => {
     if (!editing) return
     supabase
@@ -368,6 +422,38 @@ export function MoveForm() {
           )}
           <p className="mt-1 text-xs text-text-dim">
             Markiere diesen Move als Variante/verwandt mit einem bestehenden Move — sie werden dann gegenseitig verlinkt.
+          </p>
+        </div>
+      )}
+
+      {/* Mit bestehendem Move zusammenführen (Duplikate nachträglich verschmelzen) */}
+      {editing && kind === 'move' && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="mb-2 font-semibold">Mit bestehendem Move zusammenführen</h2>
+          <div className="relative">
+            <input
+              value={mergeQuery}
+              onChange={(e) => searchMerge(e.target.value)}
+              placeholder="Ziel-Move suchen (Name tippen)…"
+              className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            {mergeHits.length > 0 && (
+              <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                {mergeHits.map((h) => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => mergeInto(h.id, h.name)}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-card-hover"
+                  >
+                    {h.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-text-dim">
+            Falls dieser Move ein Duplikat ist: Sein Videoausschnitt wandert als weiteres Video zum gewählten Move, dieser doppelte Move wird entfernt.
           </p>
         </div>
       )}

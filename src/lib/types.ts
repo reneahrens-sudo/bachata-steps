@@ -217,6 +217,7 @@ export type Database = {
         Row: {
           id: string
           move_id: string
+          owner_id: string | null
           label: string | null
           youtube_id: string | null
           media_url: string | null
@@ -230,6 +231,7 @@ export type Database = {
         Insert: {
           id?: string
           move_id: string
+          owner_id?: string | null
           label?: string | null
           youtube_id?: string | null
           media_url?: string | null
@@ -243,6 +245,7 @@ export type Database = {
         Update: {
           id?: string
           move_id?: string
+          owner_id?: string | null
           label?: string | null
           youtube_id?: string | null
           media_url?: string | null

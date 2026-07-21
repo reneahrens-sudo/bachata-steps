@@ -176,6 +176,7 @@ export function LessonNew() {
         if (s.link?.mode === 'assign') {
           const { error: mme } = await supabase.from('move_media').insert({
             move_id: s.link.moveId,
+            owner_id: user.id,
             label: lessonLabel,
             media_url: url,
             thumb_url: thumbUrl,
