@@ -55,17 +55,38 @@ export function useLesson(id: string | undefined) {
       const { data: lesson, error } = await supabase.from('lessons').select('*').eq('id', id!).maybeSingle()
       if (error) throw error
       if (!lesson) return null
-      const { data: moves } = await supabase
+
+      const { data: combo } = await supabase
         .from('moves')
         .select('*')
         .eq('lesson_id', id!)
-        .order('clip_start', { ascending: true })
-      const all = (moves ?? []) as Move[]
-      return {
-        lesson: lesson as Lesson,
-        combo: all.find((m) => m.kind === 'combo') ?? null,
-        moves: all.filter((m) => m.kind === 'move'),
+        .eq('kind', 'combo')
+        .maybeSingle()
+
+      let moves: Move[] = []
+      if (combo) {
+        // Authoritative move list = the combo's ordered steps (includes moves that were
+        // assigned to an existing/catalog move, which have no lesson_id of their own).
+        const { data: items } = await supabase
+          .from('combo_items')
+          .select('position, move:moves(*)')
+          .eq('combo_id', combo.id)
+          .order('position', { ascending: true })
+        const seen = new Set<string>()
+        moves = ((items ?? []) as unknown as Array<{ move: Move }>)
+          .map((i) => i.move)
+          .filter((m) => m && !seen.has(m.id) && seen.add(m.id))
+      } else {
+        const { data: m } = await supabase
+          .from('moves')
+          .select('*')
+          .eq('lesson_id', id!)
+          .eq('kind', 'move')
+          .order('clip_start', { ascending: true })
+        moves = (m ?? []) as Move[]
       }
+
+      return { lesson: lesson as Lesson, combo: (combo as Move) ?? null, moves }
     },
   })
 }
