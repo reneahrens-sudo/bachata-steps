@@ -35,7 +35,25 @@ export function MoveForm() {
   const [clipStart, setClipStart] = useState<number | null>(null)
   const [clipEnd, setClipEnd] = useState<number | null>(null)
   const [variationOf, setVariationOf] = useState<string | null>(null)
+  const [variationName, setVariationName] = useState<string | null>(null)
+  const [relQuery, setRelQuery] = useState('')
+  const [relHits, setRelHits] = useState<{ id: string; name: string }[]>([])
   const trimRef = useRef<HTMLVideoElement>(null)
+
+  // resolve the base move's name for display
+  useEffect(() => {
+    if (!variationOf) { setVariationName(null); return }
+    supabase.from('moves').select('name').eq('id', variationOf).maybeSingle().then(({ data }) => setVariationName(data?.name ?? null))
+  }, [variationOf])
+
+  const searchBase = async (q: string) => {
+    setRelQuery(q)
+    const words = q.trim().split(/\s+/).filter((w) => w.length >= 2)
+    if (!words.length) { setRelHits([]); return }
+    const orf = words.map((w) => `name.ilike.%${w.replace(/[%,()]/g, '')}%`).join(',')
+    const { data } = await supabase.from('moves').select('id,name').eq('kind', 'move').or(orf).limit(6)
+    setRelHits(((data ?? []) as { id: string; name: string }[]).filter((h) => h.id !== id))
+  }
 
   useEffect(() => {
     if (!editing) return
@@ -121,6 +139,7 @@ export function MoveForm() {
         source_links: sourceUrl.trim() ? [{ label: 'Tutorial', url: sourceUrl.trim() }] : [],
         ...(lessonParam && !editing ? { lesson_id: lessonParam } : {}),
         ...(isClip ? { clip_start: clipStart, clip_end: clipEnd } : {}),
+        variation_of: variationOf,
       }
 
       let moveId = id
@@ -291,13 +310,59 @@ export function MoveForm() {
         </div>
       )}
 
-      {editing && variationOf && (
-        <p className="text-sm text-text-dim">
-          ≈ Als Variante angelegt —{' '}
-          <button type="button" onClick={() => navigate(`/move/${variationOf}`)} className="text-accent">
-            Basis-Move ansehen
-          </button>
-        </p>
+      {/* Verwandt mit / Variante von — Moves miteinander verknüpfen */}
+      {kind === 'move' && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="mb-2 font-semibold">Verwandt mit / Variante von</h2>
+          {variationOf ? (
+            <div className="flex items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3 py-2 text-sm">
+              <span className="text-accent">
+                ≈ Variante von: <strong>{variationName ?? '…'}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate(`/move/${variationOf}`)}
+                className="text-xs text-text-dim underline"
+              >
+                ansehen
+              </button>
+              <button
+                type="button"
+                onClick={() => { setVariationOf(null); setVariationName(null) }}
+                className="ml-auto text-text-dim hover:text-red-400"
+                title="Verknüpfung entfernen"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                value={relQuery}
+                onChange={(e) => searchBase(e.target.value)}
+                placeholder="Basis-Move suchen (Name tippen)…"
+                className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              {relHits.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                  {relHits.map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => { setVariationOf(h.id); setVariationName(h.name); setRelHits([]); setRelQuery('') }}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-card-hover"
+                    >
+                      {h.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-text-dim">
+            Markiere diesen Move als Variante/verwandt mit einem bestehenden Move — sie werden dann gegenseitig verlinkt.
+          </p>
+        </div>
       )}
 
       {err && <p className="text-sm text-red-400">{err}</p>}
