@@ -8,18 +8,25 @@ export function useLessons() {
   return useQuery({
     // Re-fetch when auth state changes (a logged-in owner also sees their private lessons).
     queryKey: ['lessons', user?.id ?? 'anon'],
-    queryFn: async (): Promise<Array<Lesson & { count: number }>> => {
+    queryFn: async (): Promise<Array<Lesson & { count: number; moveNames: string[] }>> => {
       // No owner filter: RLS returns all lessons the viewer may see (shared/public + own),
       // so classmates see shared lessons via the app link without an account.
       const { data, error } = await supabase
         .from('lessons')
-        .select('*, moves(count)')
+        .select('*, moves(name, kind, clip_start)')
         .order('course', { ascending: true })
         .order('lesson_number', { ascending: true })
         .order('created_at', { ascending: false })
       if (error) throw error
-      const rows = (data ?? []) as unknown as Array<Lesson & { moves: Array<{ count: number }> }>
-      return rows.map((l) => ({ ...l, count: l.moves?.[0]?.count ?? 0 }))
+      const rows = (data ?? []) as unknown as Array<
+        Lesson & { moves: Array<{ name: string; kind: string; clip_start: number | null }> }
+      >
+      return rows.map((l) => {
+        const mv = (l.moves ?? [])
+          .filter((m) => m.kind === 'move')
+          .sort((a, b) => (a.clip_start ?? 0) - (b.clip_start ?? 0))
+        return { ...l, count: mv.length, moveNames: mv.map((m) => m.name) }
+      })
     },
   })
 }

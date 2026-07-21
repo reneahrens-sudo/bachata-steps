@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useLessons } from '../hooks/useLessons'
 import type { Lesson } from '../lib/types'
 
-type LessonRow = Lesson & { count: number }
+type LessonRow = Lesson & { count: number; moveNames: string[] }
 
 export function Lessons() {
   const { data: lessons = [], isLoading } = useLessons()
@@ -51,15 +51,20 @@ export function Lessons() {
                     <Link
                       key={l.id}
                       to={`/lessons/${l.id}`}
-                      className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 transition hover:border-accent/60 hover:bg-card-hover"
+                      className="flex items-start justify-between gap-2 rounded-2xl border border-border bg-card p-3 transition hover:border-accent/60 hover:bg-card-hover"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <h4 className="font-semibold">
                           {l.lesson_number != null ? `Lesson ${l.lesson_number}` : l.title}
                         </h4>
-                        <p className="text-sm text-text-dim">{l.count} Moves</p>
+                        <p className="text-xs text-text-dim">{l.count} Moves</p>
+                        {l.moveNames.length > 0 && (
+                          <p className="mt-1 line-clamp-2 text-sm text-text">
+                            {l.moveNames.join(' · ')}
+                          </p>
+                        )}
                       </div>
-                      <span className="text-xl">🎬</span>
+                      <span className="shrink-0 text-xl">🎬</span>
                     </Link>
                   ))}
                 </div>
