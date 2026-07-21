@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
@@ -30,6 +30,12 @@ export function MoveForm() {
   const [comboMoves, setComboMoves] = useState<{ id: string; name: string }[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // clip trim (for lesson-derived moves)
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null)
+  const [clipStart, setClipStart] = useState<number | null>(null)
+  const [clipEnd, setClipEnd] = useState<number | null>(null)
+  const [variationOf, setVariationOf] = useState<string | null>(null)
+  const trimRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (!editing) return
@@ -49,10 +55,42 @@ export function MoveForm() {
         setYoutubeUrl(data.youtube_id ? `https://youtu.be/${data.youtube_id}` : '')
         setTags((data.tags ?? []).join(', '))
         setVisibility(data.visibility as Visibility)
+        setMediaUrl(data.media_url ?? null)
+        setClipStart(data.clip_start ?? null)
+        setClipEnd(data.clip_end ?? null)
+        setVariationOf(data.variation_of ?? null)
         const links = (data.source_links as SourceLink[] | null) ?? []
         setSourceUrl(links[0]?.url ?? '')
       })
   }, [editing, id])
+
+  const isClip = !!mediaUrl && /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) && clipStart != null
+
+  const nudgeClip = (field: 'start' | 'end', delta: number) => {
+    const v = trimRef.current
+    if (field === 'start') {
+      const nv = Math.max(0, +(((clipStart ?? 0) + delta)).toFixed(2))
+      setClipStart(nv)
+      if (v) v.currentTime = nv
+    } else {
+      const nv = Math.max((clipStart ?? 0) + 0.2, +(((clipEnd ?? 0) + delta)).toFixed(2))
+      setClipEnd(nv)
+      if (v) v.currentTime = nv
+    }
+  }
+  const playClip = () => {
+    const v = trimRef.current
+    if (!v || clipStart == null || clipEnd == null) return
+    v.currentTime = clipStart
+    v.play()
+    const stop = () => {
+      if (v.currentTime >= clipEnd!) {
+        v.pause()
+        v.removeEventListener('timeupdate', stop)
+      }
+    }
+    v.addEventListener('timeupdate', stop)
+  }
 
   if (!user)
     return (
@@ -82,6 +120,7 @@ export function MoveForm() {
         visibility,
         source_links: sourceUrl.trim() ? [{ label: 'Tutorial', url: sourceUrl.trim() }] : [],
         ...(lessonParam && !editing ? { lesson_id: lessonParam } : {}),
+        ...(isClip ? { clip_start: clipStart, clip_end: clipEnd } : {}),
       }
 
       let moveId = id
@@ -128,7 +167,17 @@ export function MoveForm() {
     }
   }
 
+  const del = async () => {
+    if (!editing || !confirm('Diesen Move wirklich löschen?')) return
+    setBusy(true)
+    const { error } = await supabase.from('moves').delete().eq('id', id!)
+    if (error) { setErr(error.message); setBusy(false); return }
+    navigate('/katalog')
+  }
+
   const input = 'w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-accent'
+  const nudgeBtn = 'rounded-md border border-border bg-bg px-2 py-1 text-xs font-medium text-text-dim hover:border-accent hover:text-accent'
+  const fmt = (t: number) => `${Math.floor(t / 60)}:${Math.floor(t % 60).toString().padStart(2, '0')}.${Math.round((t % 1) * 10)}`
 
   return (
     <form onSubmit={submit} className="mx-auto max-w-2xl space-y-4">
@@ -208,23 +257,65 @@ export function MoveForm() {
         </div>
       )}
 
+      {/* Clip trim — nachträgliches Anpassen des Ausschnitts (Lesson-Moves) */}
+      {isClip && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="mb-2 font-semibold">Ausschnitt anpassen</h2>
+          <video ref={trimRef} src={mediaUrl!} controls playsInline className="w-full rounded-xl bg-black" style={{ maxHeight: '45vh' }} />
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <button type="button" onClick={playClip} className="rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-white">
+              ▶ Ausschnitt
+            </button>
+            <span className="text-xs text-text-dim">
+              {clipStart != null && clipEnd != null ? `${fmt(clipStart)} – ${fmt(clipEnd)} (${(clipEnd - clipStart).toFixed(1)}s)` : ''}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-1">
+              <span className="w-10 text-xs text-text-dim">Start</span>
+              <button type="button" onClick={() => nudgeClip('start', -1)} className={nudgeBtn}>−1s</button>
+              <button type="button" onClick={() => nudgeClip('start', -0.5)} className={nudgeBtn}>−0,5</button>
+              <button type="button" onClick={() => nudgeClip('start', 0.5)} className={nudgeBtn}>+0,5</button>
+              <button type="button" onClick={() => nudgeClip('start', 1)} className={nudgeBtn}>+1s</button>
+              <button type="button" onClick={() => trimRef.current && setClipStart(+trimRef.current.currentTime.toFixed(2))} className={nudgeBtn}>= jetzt</button>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-10 text-xs text-text-dim">Ende</span>
+              <button type="button" onClick={() => nudgeClip('end', -1)} className={nudgeBtn}>−1s</button>
+              <button type="button" onClick={() => nudgeClip('end', -0.5)} className={nudgeBtn}>−0,5</button>
+              <button type="button" onClick={() => nudgeClip('end', 0.5)} className={nudgeBtn}>+0,5</button>
+              <button type="button" onClick={() => nudgeClip('end', 1)} className={nudgeBtn}>+1s</button>
+              <button type="button" onClick={() => trimRef.current && setClipEnd(+trimRef.current.currentTime.toFixed(2))} className={nudgeBtn}>= jetzt</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editing && variationOf && (
+        <p className="text-sm text-text-dim">
+          ≈ Als Variante angelegt —{' '}
+          <button type="button" onClick={() => navigate(`/move/${variationOf}`)} className="text-accent">
+            Basis-Move ansehen
+          </button>
+        </p>
+      )}
+
       {err && <p className="text-sm text-red-400">{err}</p>}
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex-1 rounded-xl border border-border py-3 font-medium text-text-dim"
-        >
+        <button type="button" onClick={() => navigate(-1)} className="flex-1 rounded-xl border border-border py-3 font-medium text-text-dim">
           Abbrechen
         </button>
-        <button
-          disabled={busy}
-          className="flex-1 rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-60"
-        >
+        <button disabled={busy} className="flex-1 rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-60">
           {busy ? 'Speichert…' : editing ? 'Speichern' : 'Erstellen'}
         </button>
       </div>
+
+      {editing && (
+        <button type="button" onClick={del} disabled={busy} className="w-full rounded-xl border border-red-500/40 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10">
+          🗑 Move löschen
+        </button>
+      )}
     </form>
   )
 }

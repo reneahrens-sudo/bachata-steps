@@ -5,8 +5,9 @@ import { supabase } from '../lib/supabase'
 import { uploadClassVideoSmart, uploadThumb, captureFrame, readVideoDuration } from '../lib/storage'
 import { detectSegments, type Segment } from '../lib/segment'
 import { CATEGORIES, LEVELS, STYLES } from '../lib/constants'
+import { MoveNameField, type MoveLink } from '../components/moves/MoveNameField'
 
-type Seg = Segment & { name: string; category: string; level: number | '' }
+type Seg = Segment & { name: string; category: string; level: number | ''; link: MoveLink }
 
 function fmt(t: number) {
   const m = Math.floor(t / 60)
@@ -70,7 +71,7 @@ export function LessonNew() {
       const start = Math.min(markStart, now())
       const end = Math.max(markStart, now())
       if (end - start >= 0.3) {
-        setSegs((s) => [...s, { start: +start.toFixed(2), end: +end.toFixed(2), name: '', category: '', level: '' }])
+        setSegs((s) => [...s, { start: +start.toFixed(2), end: +end.toFixed(2), name: '', category: '', level: '', link: null }])
       }
       setMarkStart(null)
     }
@@ -83,7 +84,7 @@ export function LessonNew() {
     setDetectPct(0)
     try {
       const { segments } = await detectSegments(v, { onProgress: setDetectPct })
-      setSegs(segments.map((s) => ({ ...s, name: '', category: '', level: '' as number | '' })))
+      setSegs(segments.map((s) => ({ ...s, name: '', category: '', level: '' as number | '', link: null })))
     } finally {
       setDetecting(false)
     }
@@ -154,6 +155,7 @@ export function LessonNew() {
 
       const v = videoRef.current!
       const moveIds: string[] = []
+      const lessonLabel = `${course.trim()} – ${lessonTitle}`
       for (let i = 0; i < segs.length; i++) {
         const s = segs[i]
         setSaveMsg(`Segment ${i + 1}/${segs.length} wird verarbeitet…`)
@@ -164,6 +166,23 @@ export function LessonNew() {
         } catch {
           /* thumbnail optional */
         }
+
+        // Assign to an existing move → add this clip as an extra video, no new move.
+        if (s.link?.mode === 'assign') {
+          const { error: mme } = await supabase.from('move_media').insert({
+            move_id: s.link.moveId,
+            label: lessonLabel,
+            media_url: url,
+            thumb_url: thumbUrl,
+            clip_start: s.start,
+            clip_end: s.end,
+          })
+          if (mme) throw mme
+          moveIds.push(s.link.moveId)
+          continue
+        }
+
+        // New move (optionally marked as a variation of an existing move).
         const { data: move, error: me } = await supabase
           .from('moves')
           .insert({
@@ -179,6 +198,7 @@ export function LessonNew() {
             clip_end: s.end,
             lesson_id: lesson.id,
             visibility: 'public',
+            variation_of: s.link?.mode === 'variation' ? s.link.moveId : null,
           })
           .select('id')
           .single()
@@ -319,11 +339,13 @@ export function LessonNew() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <input
+                    <MoveNameField
                       value={s.name}
-                      onChange={(e) => updateSeg(i, { name: e.target.value })}
-                      placeholder={`Move ${i + 1} – Name`}
-                      className="min-w-40 flex-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                      link={s.link}
+                      placeholder={`Move ${i + 1} – Name (tippen für Vorschläge)`}
+                      onNameChange={(name) => updateSeg(i, { name })}
+                      onLink={(link) => updateSeg(i, { link, name: link.moveName })}
+                      onClearLink={() => updateSeg(i, { link: null })}
                     />
                     <select value={s.category} onChange={(e) => updateSeg(i, { category: e.target.value })} className="rounded-lg border border-border bg-bg px-2 py-1.5 text-sm">
                       <option value="">Kategorie…</option>

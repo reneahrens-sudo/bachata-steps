@@ -1,5 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../lib/supabase'
 import { useMove, useComboItems } from '../hooks/useMoves'
 import { useMyMoveData, useSaveNotes } from '../hooks/useMyMoveData'
 import { useMoveSources, useDeleteMoveMedia } from '../hooks/useMoveMedia'
@@ -21,6 +23,18 @@ export function MoveDetail() {
   const { data: sources = [] } = useMoveSources(move)
   const delMedia = useDeleteMoveMedia(id ?? '')
   const saveNotes = useSaveNotes()
+
+  const { data: related } = useQuery({
+    queryKey: ['related', id, move?.variation_of],
+    enabled: !!move,
+    queryFn: async () => {
+      const base = move!.variation_of
+        ? (await supabase.from('moves').select('id,name').eq('id', move!.variation_of).maybeSingle()).data
+        : null
+      const vars = (await supabase.from('moves').select('id,name').eq('variation_of', id!).limit(20)).data ?? []
+      return { base, vars: vars as Array<{ id: string; name: string }> }
+    },
+  })
 
   const mine = myData?.[id ?? '']
   const [notes, setNotes] = useState('')
@@ -126,6 +140,29 @@ export function MoveDetail() {
           ) : (
             <p className="text-sm text-text-dim">Noch keine Moves. Füge welche hinzu.</p>
           )}
+        </div>
+      )}
+
+      {/* related / variations */}
+      {(related?.base || (related?.vars.length ?? 0) > 0) && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="mb-2 text-sm font-semibold text-text-dim">Verwandte Moves</h2>
+          {related?.base && (
+            <p className="text-sm">
+              ≈ Variante von{' '}
+              <Link to={`/move/${related.base.id}`} className="text-accent">
+                {related.base.name}
+              </Link>
+            </p>
+          )}
+          {related?.vars.map((rv) => (
+            <p key={rv.id} className="text-sm">
+              ↳{' '}
+              <Link to={`/move/${rv.id}`} className="text-accent">
+                {rv.name}
+              </Link>
+            </p>
+          ))}
         </div>
       )}
 
