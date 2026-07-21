@@ -11,11 +11,12 @@ export function Login() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { isRealUser, isAnonymous } = useAuth()
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true })
-  }, [user, navigate])
+    // Only bounce away real accounts — anonymous visitors must be able to reach the form.
+    if (isRealUser) navigate('/', { replace: true })
+  }, [isRealUser, navigate])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,9 +24,17 @@ export function Login() {
     setMsg(null)
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password })
-        if (error) throw error
-        setMsg('Fast fertig! Bestätige die E-Mail in deinem Postfach.')
+        if (isAnonymous) {
+          // Convert the current anonymous session into a permanent account →
+          // keeps the same user id, so content created in this session stays yours.
+          const { error } = await supabase.auth.updateUser({ email, password })
+          if (error) throw error
+          setMsg('Fast fertig! Bestätige die E-Mail in deinem Postfach — danach bist du dauerhaft angemeldet.')
+        } else {
+          const { error } = await supabase.auth.signUp({ email, password })
+          if (error) throw error
+          setMsg('Fast fertig! Bestätige die E-Mail in deinem Postfach.')
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
