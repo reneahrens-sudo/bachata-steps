@@ -12,6 +12,7 @@ import { Import } from './pages/Import'
 import { Lessons } from './pages/Lessons'
 import { LessonNew } from './pages/LessonNew'
 import { LessonDetail } from './pages/LessonDetail'
+import { LessonEdit } from './pages/LessonEdit'
 import { NewChooser } from './pages/NewChooser'
 import { Profile } from './pages/Profile'
 import { PublicProfile } from './pages/PublicProfile'
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/import" element={<Import />} />
         <Route path="/lessons" element={<Lessons />} />
         <Route path="/lessons/neu" element={<LessonNew />} />
+        <Route path="/lessons/:id/bearbeiten" element={<LessonEdit />} />
         <Route path="/lessons/:id" element={<LessonDetail />} />
         <Route path="/statistik" element={<Stats />} />
         <Route path="/profil" element={<Profile />} />

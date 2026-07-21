@@ -24,6 +24,22 @@ export function useLessons() {
   })
 }
 
+/** Distinct existing course & school values, for the create/edit comboboxes. */
+export function useLessonOptions() {
+  return useQuery({
+    queryKey: ['lesson_options'],
+    queryFn: async () => {
+      const { data } = await supabase.from('lessons').select('course, school')
+      const uniq = (arr: (string | null)[]) =>
+        [...new Set(arr.map((x) => x?.trim()).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b))
+      return {
+        courses: uniq((data ?? []).map((d) => d.course)),
+        schools: uniq((data ?? []).map((d) => d.school)),
+      }
+    },
+  })
+}
+
 export function useLesson(id: string | undefined) {
   return useQuery({
     queryKey: ['lesson', id],

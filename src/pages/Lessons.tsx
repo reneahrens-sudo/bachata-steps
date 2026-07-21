@@ -1,20 +1,33 @@
 import { Link } from 'react-router-dom'
 import { useLessons } from '../hooks/useLessons'
+import type { Lesson } from '../lib/types'
+
+type LessonRow = Lesson & { count: number }
 
 export function Lessons() {
   const { data: lessons = [], isLoading } = useLessons()
 
+  // Nested grouping: School → Course → Lessons (sorted by lesson number)
+  const bySchool = new Map<string, Map<string, LessonRow[]>>()
+  for (const l of lessons) {
+    const school = l.school?.trim() || 'Ohne Schule'
+    const course = l.course?.trim() || 'Ohne Course'
+    if (!bySchool.has(school)) bySchool.set(school, new Map())
+    const courses = bySchool.get(school)!
+    if (!courses.has(course)) courses.set(course, [])
+    courses.get(course)!.push(l)
+  }
+  const sortLessons = (a: LessonRow, b: LessonRow) =>
+    (a.lesson_number ?? 9999) - (b.lesson_number ?? 9999) || a.title.localeCompare(b.title)
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Classes</h1>
         <Link to="/lessons/neu" className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white">
           ＋ Aus Video
         </Link>
       </div>
-      <p className="text-sm text-text-dim">
-        Lade ein Klassenvideo hoch, markiere die Moves — alles wird nach Course &amp; Lesson gruppiert.
-      </p>
 
       {isLoading ? (
         <p className="text-text-dim">Lädt…</p>
@@ -23,36 +36,35 @@ export function Lessons() {
           Noch keine Classes. Leg deine erste aus einem Klassenvideo an! 🎬
         </div>
       ) : (
-        Object.entries(
-          lessons.reduce<Record<string, typeof lessons>>((acc, l) => {
-            const key = l.course?.trim() || l.school?.trim() || 'Ohne Course'
-            ;(acc[key] ??= []).push(l)
-            return acc
-          }, {}),
-        ).map(([courseName, group]) => (
-          <section key={courseName} className="space-y-2">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-text-dim">
-              <span>📚</span> {courseName}
+        [...bySchool.entries()].map(([school, courses]) => (
+          <section key={school} className="space-y-3">
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <span>🏫</span> {school}
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {group.map((l) => (
-                <Link
-                  key={l.id}
-                  to={`/lessons/${l.id}`}
-                  className="flex items-center justify-between rounded-2xl border border-border bg-card p-4 transition hover:border-accent/60 hover:bg-card-hover"
-                >
-                  <div>
-                    <h3 className="font-semibold">
-                      {l.lesson_number != null ? `Lesson ${l.lesson_number}` : l.title}
-                    </h3>
-                    <p className="text-sm text-text-dim">
-                      {l.count} Moves{l.school ? ` · ${l.school}` : ''}
-                    </p>
-                  </div>
-                  <span className="text-2xl">🎬</span>
-                </Link>
-              ))}
-            </div>
+            {[...courses.entries()].map(([course, group]) => (
+              <div key={course} className="space-y-2 border-l-2 border-border pl-3">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-text-dim">
+                  <span>📚</span> {course}
+                </h3>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {group.sort(sortLessons).map((l) => (
+                    <Link
+                      key={l.id}
+                      to={`/lessons/${l.id}`}
+                      className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 transition hover:border-accent/60 hover:bg-card-hover"
+                    >
+                      <div>
+                        <h4 className="font-semibold">
+                          {l.lesson_number != null ? `Lesson ${l.lesson_number}` : l.title}
+                        </h4>
+                        <p className="text-sm text-text-dim">{l.count} Moves</p>
+                      </div>
+                      <span className="text-xl">🎬</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
           </section>
         ))
       )}

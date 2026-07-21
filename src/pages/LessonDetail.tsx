@@ -1,38 +1,26 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { useLesson } from '../hooks/useLessons'
 import { useMyMoveData } from '../hooks/useMyMoveData'
+import { useAuth } from '../hooks/useAuth'
 import { MediaPlayer } from '../components/moves/MediaPreview'
 import { MoveGrid } from '../components/moves/MoveGrid'
-import { supabase } from '../lib/supabase'
 
 export function LessonDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const { data, isLoading } = useLesson(id)
   const { data: myData } = useMyMoveData()
-
-  const del = useMutation({
-    mutationFn: async () => {
-      // remove lesson's moves + combo, then the lesson
-      await supabase.from('moves').delete().eq('lesson_id', id!)
-      await supabase.from('lessons').delete().eq('id', id!)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['lessons'] })
-      qc.invalidateQueries({ queryKey: ['moves'] })
-      navigate('/lessons')
-    },
-  })
+  const { user } = useAuth()
 
   if (isLoading) return <div className="py-20 text-center text-text-dim">Lädt…</div>
-  if (!data) return <div className="py-20 text-center text-text-dim">Lesson nicht gefunden.</div>
+  if (!data) return <div className="py-20 text-center text-text-dim">Class nicht gefunden.</div>
+
+  const isOwner = user && data.lesson.owner_id === user.id
 
   return (
     <div className="space-y-5">
       <button onClick={() => navigate('/lessons')} className="text-sm text-text-dim hover:text-text">
-        ← Lessons
+        ← Classes
       </button>
 
       <div className="flex items-start justify-between gap-3">
@@ -46,13 +34,13 @@ export function LessonDetail() {
           <h1 className="text-2xl font-bold">
             {data.lesson.lesson_number != null ? `Lesson ${data.lesson.lesson_number}` : data.lesson.title}
           </h1>
+          {data.lesson.notes && <p className="mt-1 whitespace-pre-wrap text-sm text-text-dim">{data.lesson.notes}</p>}
         </div>
-        <button
-          onClick={() => confirm('Lesson mit allen Moves löschen?') && del.mutate()}
-          className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-red-400"
-        >
-          🗑
-        </button>
+        {isOwner && (
+          <Link to={`/lessons/${data.lesson.id}/bearbeiten`} className="shrink-0 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+            ✏️ Bearbeiten
+          </Link>
+        )}
       </div>
 
       {data.combo && (
@@ -67,7 +55,7 @@ export function LessonDetail() {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-dim">Moves dieser Lesson ({data.moves.length})</h2>
+          <h2 className="text-sm font-semibold text-text-dim">Moves dieser Class ({data.moves.length})</h2>
           <Link to={`/move/neu?lesson=${data.lesson.id}`} className="text-sm font-medium text-accent">
             ＋ Move hinzufügen
           </Link>

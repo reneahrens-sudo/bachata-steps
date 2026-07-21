@@ -6,6 +6,8 @@ import { uploadClassVideoSmart, uploadThumb, captureFrame, readVideoDuration } f
 import { detectSegments, type Segment } from '../lib/segment'
 import { CATEGORIES, LEVELS, STYLES } from '../lib/constants'
 import { MoveNameField, type MoveLink } from '../components/moves/MoveNameField'
+import { ComboInput } from '../components/ui/ComboInput'
+import { useLessonOptions } from '../hooks/useLessons'
 
 type Seg = Segment & { name: string; category: string; level: number | ''; link: MoveLink }
 
@@ -23,9 +25,11 @@ export function LessonNew() {
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement>(null)
 
+  const { data: options } = useLessonOptions()
   const [course, setCourse] = useState('')
   const [lessonNumber, setLessonNumber] = useState<number | ''>('')
   const [school, setSchool] = useState('')
+  const [description, setDescription] = useState('')
   const [style, setStyle] = useState('bachata')
   const [file, setFile] = useState<File | null>(null)
   const [fileUrl, setFileUrl] = useState<string | null>(null)
@@ -147,6 +151,7 @@ export function LessonNew() {
           course: course.trim(),
           lesson_number: Number(lessonNumber),
           school: school.trim() || null,
+          notes: description.trim() || null,
           video_id: videoId,
         })
         .select('id')
@@ -242,7 +247,10 @@ export function LessonNew() {
       <h1 className="text-2xl font-bold">Neue Class aus Video</h1>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input placeholder="Course, z.B. Foundations 1" value={course} onChange={(e) => setCourse(e.target.value)} className={inputCls} />
+        <ComboInput value={school} onChange={setSchool} options={options?.schools ?? []} listId="schools" placeholder="Schule, z.B. ICB" />
+        <ComboInput value={course} onChange={setCourse} options={options?.courses ?? []} listId="courses" placeholder="Course, z.B. Foundations 1" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input
           type="number"
           min={1}
@@ -251,9 +259,6 @@ export function LessonNew() {
           onChange={(e) => setLessonNumber(e.target.value === '' ? '' : Number(e.target.value))}
           className={inputCls}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input placeholder="Schule (optional), z.B. ICB" value={school} onChange={(e) => setSchool(e.target.value)} className={inputCls} />
         <select value={style} onChange={(e) => setStyle(e.target.value)} className={inputCls}>
           {STYLES.map((s) => (
             <option key={s.key} value={s.key}>
@@ -262,6 +267,13 @@ export function LessonNew() {
           ))}
         </select>
       </div>
+      <textarea
+        placeholder="Beschreibung (optional)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        className={inputCls + ' resize-none'}
+      />
 
       {!fileUrl ? (
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border p-10 text-center text-text-dim transition hover:border-accent">
