@@ -119,7 +119,7 @@ export function MediaSourcePlayer({
     return (
       <div className={`overflow-hidden rounded-2xl bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
         <iframe
-          src={youTubeEmbed(source.youtube_id)}
+          src={youTubeEmbed(source.youtube_id, { start: source.clip_start, end: source.clip_end })}
           title={name}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen

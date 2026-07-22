@@ -19,6 +19,19 @@ export function youTubeThumb(id: string, quality: 'hq' | 'mq' | 'max' = 'hq'): s
   return `https://i.ytimg.com/vi/${id}/${map[quality]}.jpg`
 }
 
-export function youTubeEmbed(id: string): string {
-  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`
+export function youTubeEmbed(id: string, opts?: { start?: number | null; end?: number | null }): string {
+  let u = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`
+  if (opts?.start != null) u += `&start=${Math.floor(opts.start)}`
+  if (opts?.end != null) u += `&end=${Math.ceil(opts.end)}`
+  return u
+}
+
+/** Parses "1:05", "65", or "1:05.5" into seconds; empty/invalid → null. */
+export function parseTime(s: string): number | null {
+  const t = s.trim()
+  if (!t) return null
+  if (/^\d+(\.\d+)?$/.test(t)) return parseFloat(t)
+  const m = t.match(/^(\d+):(\d{1,2}(?:\.\d+)?)$/)
+  if (m) return parseInt(m[1], 10) * 60 + parseFloat(m[2])
+  return null
 }

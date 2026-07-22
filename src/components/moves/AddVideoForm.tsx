@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAddMoveMedia } from '../../hooks/useMoveMedia'
-import { extractYouTubeId } from '../../lib/youtube'
+import { extractYouTubeId, parseTime } from '../../lib/youtube'
 import { useAuth } from '../../hooks/useAuth'
 import { uploadClassVideoSmart, generateThumbFromFile } from '../../lib/storage'
 
@@ -14,13 +14,27 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
 
   // If the move has no video yet (and you own it), the added clip becomes its MAIN video
   // (so it previews everywhere); otherwise it's stored as an extra video.
-  const attach = async (fields: { youtube_id?: string | null; media_url?: string | null; thumb_url?: string | null; label?: string | null; source_url?: string | null }) => {
+  const attach = async (fields: {
+    youtube_id?: string | null
+    media_url?: string | null
+    thumb_url?: string | null
+    label?: string | null
+    source_url?: string | null
+    clip_start?: number | null
+    clip_end?: number | null
+  }) => {
     const { data: tgt } = await supabase.from('moves').select('media_url, youtube_id, owner_id').eq('id', moveId).single()
     const hasPrimary = !!(tgt && (tgt.media_url || tgt.youtube_id))
     if (!hasPrimary && tgt?.owner_id === user?.id) {
       const { error } = await supabase
         .from('moves')
-        .update({ media_url: fields.media_url ?? null, youtube_id: fields.youtube_id ?? null, thumb_url: fields.thumb_url ?? null })
+        .update({
+          media_url: fields.media_url ?? null,
+          youtube_id: fields.youtube_id ?? null,
+          thumb_url: fields.thumb_url ?? null,
+          clip_start: fields.clip_start ?? null,
+          clip_end: fields.clip_end ?? null,
+        })
         .eq('id', moveId)
       if (error) throw error
       qc.invalidateQueries({ queryKey: ['move', moveId] })
@@ -34,13 +48,19 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
   const [mode, setMode] = useState<'link' | 'file'>('link')
   const [url, setUrl] = useState('')
   const [label, setLabel] = useState('')
+  const [ytStart, setYtStart] = useState('')
+  const [ytEnd, setYtEnd] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
+  const isYouTube = mode === 'link' && !!extractYouTubeId(url) && !/b-cdn\.net/i.test(url)
+
   const reset = () => {
     setUrl('')
     setLabel('')
+    setYtStart('')
+    setYtEnd('')
     setFile(null)
     setOpen(false)
     setErr(null)
@@ -63,6 +83,8 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
         youtube_id: yt,
         media_url: yt ? null : u,
         source_url: u,
+        clip_start: yt ? parseTime(ytStart) : null,
+        clip_end: yt ? parseTime(ytEnd) : null,
       })
       reset()
     } catch (e) {
@@ -132,6 +154,24 @@ export function AddVideoForm({ moveId }: { moveId: string }) {
           {file ? `🎬 ${file.name}` : '🎬 Videodatei wählen (MP4)'}
           <input type="file" accept="video/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </label>
+      )}
+
+      {isYouTube && (
+        <div className="flex items-center gap-2">
+          <input
+            value={ytStart}
+            onChange={(e) => setYtStart(e.target.value)}
+            placeholder="Start (z.B. 0:45)"
+            className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <span className="text-text-dim">–</span>
+          <input
+            value={ytEnd}
+            onChange={(e) => setYtEnd(e.target.value)}
+            placeholder="Ende (z.B. 1:10)"
+            className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+        </div>
       )}
 
       <input
