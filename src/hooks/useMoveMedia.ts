@@ -49,6 +49,20 @@ export function useAddMoveMedia() {
   })
 }
 
+export function useUpdateMoveMedia(moveId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: { label?: string | null; clip_start?: number | null; clip_end?: number | null } }) => {
+      const { error } = await supabase.from('move_media').update(patch).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['move_media', moveId] })
+      qc.invalidateQueries({ queryKey: ['move', moveId] })
+    },
+  })
+}
+
 export function useDeleteMoveMedia(moveId: string) {
   const qc = useQueryClient()
   return useMutation({

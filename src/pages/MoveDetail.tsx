@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useMove, useComboItems } from '../hooks/useMoves'
 import { useMyMoveData, useSaveNotes } from '../hooks/useMyMoveData'
-import { useMoveSources, useDeleteMoveMedia } from '../hooks/useMoveMedia'
+import { useMoveSources, useDeleteMoveMedia, useUpdateMoveMedia } from '../hooks/useMoveMedia'
 import { MediaGallery } from '../components/moves/MediaPreview'
 import { AddVideoForm } from '../components/moves/AddVideoForm'
+import { ExtraVideoRow } from '../components/moves/ExtraVideoRow'
 import { StatusChips } from '../components/moves/StatusChips'
 import { CollectionPicker } from '../components/collections/CollectionPicker'
 import { LEVEL_COLORS, categoryLabel, styleLabel } from '../lib/constants'
@@ -23,6 +24,7 @@ export function MoveDetail() {
   const { data: comboItems } = useComboItems(move?.kind === 'combo' ? id : undefined)
   const { data: sources = [] } = useMoveSources(move)
   const delMedia = useDeleteMoveMedia(id ?? '')
+  const updateMedia = useUpdateMoveMedia(id ?? '')
   const saveNotes = useSaveNotes()
 
   // The "family" of a move = its base + all variations of that base (excluding itself),
@@ -59,24 +61,21 @@ export function MoveDetail() {
       {user && (
         <div className="space-y-2">
           <AddVideoForm moveId={move.id} />
-          {/* extra videos (not the primary) — deletable by their uploader or the move owner */}
+          {/* manage additional videos — label, clip start/end, remove */}
           {sources.filter((s) => s.id !== move.id).length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-text-dim">Weitere Videos verwalten</p>
               {sources
                 .filter((s) => s.id !== move.id)
-                .map((s) => {
-                  const canDelete = isOwner || s.owner_id === user.id
-                  return (
-                    <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs text-text-dim">
-                      🎬 {s.label ?? 'Video'}
-                      {canDelete && (
-                        <button onClick={() => delMedia.mutate(s.id)} className="text-text-dim hover:text-red-400" title="Dieses Zusatzvideo entfernen">
-                          ✕
-                        </button>
-                      )}
-                    </span>
-                  )
-                })}
+                .map((s) => (
+                  <ExtraVideoRow
+                    key={s.id}
+                    source={s}
+                    canManage={!!isOwner || s.owner_id === user.id}
+                    onSave={(id, patch) => updateMedia.mutateAsync({ id, patch })}
+                    onDelete={(id) => delMedia.mutate(id)}
+                  />
+                ))}
             </div>
           )}
         </div>
