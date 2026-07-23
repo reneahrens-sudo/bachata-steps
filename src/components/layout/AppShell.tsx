@@ -20,7 +20,7 @@ export function AppShell() {
     <div className="min-h-svh">
       {/* Top bar */}
       <header className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-4 lg:px-6">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <span className="text-xl">💃</span>
             <span>
@@ -72,7 +72,7 @@ export function AppShell() {
       </header>
 
       {/* Content */}
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-4 md:pb-10">
+      <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-4 md:pb-10 lg:px-6">
         <Outlet />
       </main>
 

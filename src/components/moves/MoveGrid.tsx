@@ -12,7 +12,7 @@ export function MoveGrid({ moves, myData }: { moves: Move[]; myData?: MyDataMap 
     )
   }
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
       {moves.map((m) => (
         <MoveCard key={m.id} move={m} data={myData?.[m.id]} />
       ))}
