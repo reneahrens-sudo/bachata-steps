@@ -121,7 +121,7 @@ export function MyVideos() {
                     <p className="text-text">
                       Video wirklich löschen?
                       {v.moves.length > 0 && (
-                        <> Dabei werden <b>{v.moves.length}</b> daraus entstandene {v.moves.length === 1 ? 'Eintrag' : 'Einträge'} (Moves/Combos) mit entfernt.</>
+                        <> Daraus entstandene Moves/Combos ({v.moves.length}) werden entfernt — <b>außer</b> sie haben noch ein weiteres Video, dann bleiben sie erhalten.</>
                       )}
                     </p>
                     <div className="mt-2 flex gap-2">
@@ -129,7 +129,7 @@ export function MyVideos() {
                         disabled={busy}
                         onClick={() =>
                           del.mutate(
-                            { videoId: v.id, storagePath: v.storage_path },
+                            { videoId: v.id, storagePath: v.storage_path, publicUrl: v.public_url },
                             { onSettled: () => setConfirmId(null), onError: (e) => alert((e as Error).message) },
                           )
                         }

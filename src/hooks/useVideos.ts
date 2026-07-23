@@ -6,7 +6,7 @@ import { useAuth } from './useAuth'
 import type { VideoRow } from '../lib/types'
 
 type UsedMove = { id: string; name: string; kind: string; visibility: string; thumb_url: string | null; media_url: string | null }
-export type MyVideo = VideoRow & { moves: UsedMove[]; play_url: string | null }
+export type MyVideo = VideoRow & { moves: UsedMove[]; play_url: string | null; public_url: string | null }
 
 /** All uploaded videos owned by the user, each with the moves/combo derived from it + a playable URL. */
 export function useMyVideos() {
@@ -40,37 +40,78 @@ export function useMyVideos() {
         const url = byVid[v.id]?.find((m) => m.media_url?.endsWith(v.storage_path))?.media_url
         if (url) { base = url.slice(0, url.length - v.storage_path.length); break }
       }
-      const playUrlFor = (v: VideoRow): string | null => {
+      // Canonical public URL of the stored object (base + storage_path). Used both for
+      // playback and to identify clips of this video attached to other moves on delete.
+      const publicUrlFor = (v: VideoRow): string | null => {
+        if (base) return base + v.storage_path
         const direct = byVid[v.id]?.find((m) => m.media_url)?.media_url
         if (direct) return direct
-        if (base) return base + v.storage_path
         if (import.meta.env.VITE_STORAGE_BACKEND !== 'r2') return publicVideoUrl(v.storage_path)
         return null
       }
 
-      return (vids ?? []).map((v) => ({ ...v, moves: byVid[v.id] ?? [], play_url: playUrlFor(v) }))
+      return (vids ?? []).map((v) => {
+        const url = publicUrlFor(v)
+        return { ...v, moves: byVid[v.id] ?? [], play_url: url, public_url: url }
+      })
     },
   })
 }
 
-/** Deletes a video: its storage object, all moves/combos derived from it (+ their links), and the row. */
+/**
+ * Deletes a video. A move whose primary source is this video is KEPT if it has another
+ * source (an extra move_media clip, or a YouTube link) — that source is promoted to primary.
+ * Only moves left with no other source are removed. Clips of this video attached to other
+ * moves are detached. Finally the row and the stored object are removed.
+ */
 export function useDeleteVideo() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ videoId, storagePath }: { videoId: string; storagePath: string }) => {
-      // 1. Delete all moves/combos derived from this video (+ their dependents).
-      const { data: moves } = await supabase.from('moves').select('id').eq('video_id', videoId)
-      await deleteMovesDeep((moves ?? []).map((m) => m.id))
-      // 2. Detach any lesson that pointed at this video, then delete the lesson if now empty.
+    mutationFn: async ({ videoId, storagePath, publicUrl }: { videoId: string; storagePath: string; publicUrl: string | null }) => {
+      // 1. Moves whose PRIMARY source is this video.
+      const { data: primaryMoves } = await supabase.from('moves').select('id, youtube_id').eq('video_id', videoId)
+      const toDelete: string[] = []
+      for (const m of primaryMoves ?? []) {
+        // Look for an alternative source on this move (another video, not this one).
+        const { data: media } = await supabase.from('move_media').select('*').eq('move_id', m.id)
+        const alt =
+          (media ?? []).find((a) => a.media_url && a.media_url !== publicUrl) ??
+          (media ?? []).find((a) => a.youtube_id)
+        if (alt) {
+          // Promote the alternative to primary and keep the move.
+          await supabase
+            .from('moves')
+            .update({
+              media_url: alt.media_url,
+              youtube_id: alt.youtube_id,
+              thumb_url: alt.thumb_url,
+              clip_start: alt.clip_start,
+              clip_end: alt.clip_end,
+              video_id: null,
+            })
+            .eq('id', m.id)
+          await supabase.from('move_media').delete().eq('id', alt.id)
+        } else if (m.youtube_id) {
+          // Move also had a YouTube source alongside the video → just drop the video part.
+          await supabase.from('moves').update({ media_url: null, clip_start: null, clip_end: null, video_id: null }).eq('id', m.id)
+        } else {
+          toDelete.push(m.id)
+        }
+      }
+      // 2. Delete the moves that had no other source (+ their dependents).
+      await deleteMovesDeep(toDelete)
+      // 3. Detach clips of THIS video that hang on other (kept) moves as extra videos.
+      if (publicUrl) await supabase.from('move_media').delete().eq('media_url', publicUrl)
+      // 4. Detach any lesson that pointed at this video.
       await supabase.from('lessons').update({ video_id: null }).eq('video_id', videoId)
-      // 3. Delete the videos row.
+      // 5. Delete the videos row.
       const { error: dv } = await supabase.from('videos').delete().eq('id', videoId)
       if (dv) throw dv
-      // 4. Free the stored object (best-effort — the DB is already consistent).
+      // 6. Free the stored object (best-effort — the DB is already consistent).
       try { await deleteVideoObject(storagePath) } catch (e) { console.warn('Storage-Objekt konnte nicht gelöscht werden:', e) }
     },
     onSuccess: () => {
-      for (const k of [['my_videos'], ['moves'], ['move'], ['lessons'], ['lesson'], ['discover'], ['collections']]) qc.invalidateQueries({ queryKey: k })
+      for (const k of [['my_videos'], ['moves'], ['move'], ['move_media'], ['lessons'], ['lesson'], ['discover'], ['collections']]) qc.invalidateQueries({ queryKey: k })
     },
   })
 }
