@@ -85,6 +85,19 @@ export async function uploadClassVideoSmart(
   return uploadClassVideo(file, userId, opts)
 }
 
+/** Deletes a stored video object from the active backend (R2 via edge fn, or Supabase Storage). */
+export async function deleteVideoObject(storagePath: string): Promise<void> {
+  if (!storagePath) return
+  if (import.meta.env.VITE_STORAGE_BACKEND === 'r2') {
+    const { data, error } = await supabase.functions.invoke('r2-delete', { body: { key: storagePath } })
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+    return
+  }
+  const { error } = await supabase.storage.from(BUCKET).remove([storagePath])
+  if (error) throw error
+}
+
 /** Uploads a JPEG thumbnail blob and returns its public URL. */
 export async function uploadThumb(blob: Blob, userId: string): Promise<string> {
   const path = `${userId}/thumbs/${crypto.randomUUID()}.jpg`

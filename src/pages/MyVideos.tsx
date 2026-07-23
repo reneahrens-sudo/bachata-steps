@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { useMyVideos, useSetVideoVisibility } from '../hooks/useVideos'
+import { useMyVideos, useSetVideoVisibility, useDeleteVideo, type MyVideo } from '../hooks/useVideos'
 
 const VIS = [
   { key: 'private', label: '🔒 Privat' },
@@ -14,6 +15,9 @@ export function MyVideos() {
   const { user } = useAuth()
   const { data: videos = [], isLoading } = useMyVideos()
   const setVis = useSetVideoVisibility()
+  const del = useDeleteVideo()
+  const [playing, setPlaying] = useState<MyVideo | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   if (!user)
     return (
@@ -57,13 +61,22 @@ export function MyVideos() {
             const combo = v.moves.find((m) => m.kind === 'combo')
             const moveList = v.moves.filter((m) => m.kind === 'move')
             const thumb = combo?.thumb_url ?? moveList[0]?.thumb_url ?? null
-            const busy = setVis.isPending && setVis.variables?.videoId === v.id
+            const busy = (setVis.isPending && setVis.variables?.videoId === v.id) || (del.isPending && del.variables?.videoId === v.id)
+            const confirming = confirmId === v.id
             return (
               <div key={v.id} className="rounded-2xl border border-border bg-card p-3">
                 <div className="flex gap-3">
-                  <div className="h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-bg-soft">
+                  <button
+                    onClick={() => v.play_url && setPlaying(v)}
+                    disabled={!v.play_url}
+                    className="group relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-bg-soft disabled:cursor-default"
+                    title={v.play_url ? 'Abspielen' : 'Keine abspielbare Quelle'}
+                  >
                     {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-2xl">🎬</span>}
-                  </div>
+                    {v.play_url && (
+                      <span className="absolute inset-0 grid place-items-center bg-black/25 text-2xl text-white opacity-90 transition group-hover:bg-black/40">▶</span>
+                    )}
+                  </button>
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate font-semibold">{v.title ?? 'Video'}</h3>
                     <p className="text-xs text-text-dim">
@@ -72,7 +85,7 @@ export function MyVideos() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {VIS.map((o) => {
                     const active = v.visibility === o.key
                     return (
@@ -91,10 +104,62 @@ export function MyVideos() {
                       </button>
                     )
                   })}
+                  <button
+                    disabled={busy}
+                    onClick={() => setConfirmId(v.id)}
+                    className="ml-auto rounded-full border border-border px-3 py-1.5 text-sm font-medium text-red-400 transition hover:border-red-400/60 disabled:opacity-50"
+                  >
+                    🗑 Löschen
+                  </button>
                 </div>
+
+                {confirming && (
+                  <div className="mt-2 rounded-xl border border-red-400/40 bg-red-500/5 p-3 text-sm">
+                    <p className="text-text">
+                      Video wirklich löschen?
+                      {v.moves.length > 0 && (
+                        <> Dabei werden <b>{v.moves.length}</b> daraus entstandene {v.moves.length === 1 ? 'Eintrag' : 'Einträge'} (Moves/Combos) mit entfernt.</>
+                      )}
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          del.mutate(
+                            { videoId: v.id, storagePath: v.storage_path },
+                            { onSettled: () => setConfirmId(null), onError: (e) => alert((e as Error).message) },
+                          )
+                        }
+                        className="rounded-lg bg-red-500 px-4 py-1.5 font-semibold text-white disabled:opacity-50"
+                      >
+                        {busy ? 'Löscht…' : 'Endgültig löschen'}
+                      </button>
+                      <button disabled={busy} onClick={() => setConfirmId(null)} className="rounded-lg border border-border px-4 py-1.5">
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
+        </div>
+      )}
+
+      {playing && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4"
+          onClick={() => setPlaying(null)}
+        >
+          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <video src={playing.play_url!} controls autoPlay playsInline className="max-h-[80svh] w-full rounded-xl bg-black" />
+            <div className="mt-2 flex items-center justify-between">
+              <span className="truncate text-sm text-white/80">{playing.title ?? 'Video'}</span>
+              <button onClick={() => setPlaying(null)} className="rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white">
+                Schließen
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
