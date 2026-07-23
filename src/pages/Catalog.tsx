@@ -82,8 +82,8 @@ export function Catalog() {
           Fehler beim Laden: {(error as Error).message}
         </div>
       ) : isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          {Array.from({ length: 12 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="animate-pulse rounded-2xl border border-border bg-card" style={{ aspectRatio: '3/4' }} />
           ))}
         </div>

@@ -124,8 +124,8 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
           )}
         </Link>
 
-        {/* dim backdrop for control legibility (click falls through to the detail link) */}
-        <div className={`pointer-events-none absolute inset-0 bg-black/55 ${reveal}`} />
+        {/* slim bottom gradient for control legibility — video stays fully visible while hovering */}
+        <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/40 to-transparent ${reveal}`} />
 
         {/* level + combo badges */}
         {move.level != null && (
@@ -158,10 +158,17 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
           ⋯
         </button>
 
-        {/* quick-actions panel — centered over dimmed media. Container stays click-through so
-            empty areas still open the detail page; only the button rows capture clicks when shown. */}
-        <div className={`pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 p-2 ${reveal}`}>
-          <div className={`flex flex-wrap justify-center gap-1.5 ${revealOn}`}>
+        {/* quick actions pinned to the BOTTOM edge — you keep watching the video above.
+            Container stays click-through; empty areas still open the detail page. */}
+        <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 p-2 ${reveal}`}>
+          <div className="flex justify-end gap-1.5">
+            <button onClick={openCollection} className={`${roundBtn} ${revealOn}`} title="Zu Sammlung">📚</button>
+            {sourceUrl && (
+              <a href={sourceUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={`${roundBtn} ${revealOn}`} title="Quelle öffnen">↗</a>
+            )}
+            <button onClick={share} className={`${roundBtn} ${revealOn}`} title="Teilen">{shared ? '✓' : '🔗'}</button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
             {STATUS_ORDER.map((flag) => {
               const meta = STATUS_META[flag]
               const active = !!data?.[flag]
@@ -169,10 +176,10 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
                 <button
                   key={flag}
                   onClick={(e) => toggleStatus(e, flag, active)}
-                  className="grid h-8 w-8 place-items-center rounded-full border text-sm backdrop-blur transition active:scale-95"
+                  className={`grid h-8 w-8 place-items-center rounded-full border text-sm backdrop-blur transition active:scale-95 ${revealOn}`}
                   style={{
-                    borderColor: active ? meta.color : 'rgba(255,255,255,.4)',
-                    background: active ? meta.color : 'rgba(0,0,0,.55)',
+                    borderColor: active ? meta.color : 'rgba(255,255,255,.45)',
+                    background: active ? meta.color : 'rgba(0,0,0,.6)',
                     color: active ? '#000' : '#fff',
                   }}
                   title={meta.label}
@@ -181,13 +188,6 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
                 </button>
               )
             })}
-          </div>
-          <div className={`flex justify-center gap-1.5 ${revealOn}`}>
-            <button onClick={openCollection} className={roundBtn} title="Zu Sammlung">📚</button>
-            {sourceUrl && (
-              <a href={sourceUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={roundBtn} title="Quelle öffnen">↗</a>
-            )}
-            <button onClick={share} className={roundBtn} title="Teilen">{shared ? '✓' : '🔗'}</button>
           </div>
         </div>
       </div>
