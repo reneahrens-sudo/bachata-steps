@@ -14,6 +14,7 @@ import { LessonNew } from './pages/LessonNew'
 import { LessonDetail } from './pages/LessonDetail'
 import { LessonEdit } from './pages/LessonEdit'
 import { NewChooser } from './pages/NewChooser'
+import { MyVideos } from './pages/MyVideos'
 import { Profile } from './pages/Profile'
 import { PublicProfile } from './pages/PublicProfile'
 import { Stats } from './pages/Stats'
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/sammlungen/:id" element={<CollectionDetail />} />
         <Route path="/entdecken" element={<Discover />} />
         <Route path="/import" element={<Import />} />
+        <Route path="/videos" element={<MyVideos />} />
         <Route path="/lessons" element={<Lessons />} />
         <Route path="/lessons/neu" element={<LessonNew />} />
         <Route path="/lessons/:id/bearbeiten" element={<LessonEdit />} />

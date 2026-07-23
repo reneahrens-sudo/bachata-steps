@@ -218,6 +218,7 @@ export function LessonNew() {
             clip_start: s.start,
             clip_end: s.end,
             lesson_id: lesson.id,
+            video_id: videoId,
             visibility: 'public',
             variation_of: s.link?.mode === 'variation' ? s.link.moveId : null,
           })
@@ -247,6 +248,7 @@ export function LessonNew() {
           clip_start: 0,
           clip_end: duration,
           lesson_id: lesson.id,
+          video_id: videoId,
           visibility: 'public',
         })
         .select('id')

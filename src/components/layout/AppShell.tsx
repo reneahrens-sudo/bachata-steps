@@ -8,6 +8,7 @@ const desktopLinks = [
   { to: '/lessons', label: 'Classes' },
   { to: '/sammlungen', label: 'Sammlungen' },
   { to: '/entdecken', label: 'Entdecken' },
+  { to: '/videos', label: 'Videos' },
   { to: '/import', label: 'Import' },
   { to: '/statistik', label: 'Statistik' },
 ]

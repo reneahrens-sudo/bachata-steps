@@ -96,6 +96,9 @@ export function Profile() {
         <Link to="/statistik" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
           📊 Meine Statistik
         </Link>
+        <Link to="/videos" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
+          🎞️ Meine Videos (privat/öffentlich)
+        </Link>
         <Link to="/import" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
           📥 Aus bachatasteps.com importieren
         </Link>
