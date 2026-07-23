@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
-import { uploadClassVideoSmart, uploadThumb, captureFrame, readVideoDuration } from '../lib/storage'
+import { uploadClassVideoSmart, uploadThumb, captureFrame, readVideoDuration, usedStorageBytes, STORAGE_QUOTA_BYTES } from '../lib/storage'
 import { detectSegments, type Segment } from '../lib/segment'
 import { CATEGORIES, LEVELS, STYLES } from '../lib/constants'
 import { MoveNameField, type MoveLink } from '../components/moves/MoveNameField'
 import { ComboInput } from '../components/ui/ComboInput'
 import { useLessonOptions } from '../hooks/useLessons'
+import type { Visibility } from '../lib/types'
 
 type Seg = Segment & { name: string; category: string; level: number | ''; link: MoveLink }
 
@@ -23,6 +25,7 @@ const SPEEDS = [0.25, 0.5, 1] as const
 export function LessonNew() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const { data: options } = useLessonOptions()
@@ -31,6 +34,7 @@ export function LessonNew() {
   const [school, setSchool] = useState('')
   const [description, setDescription] = useState('')
   const [style, setStyle] = useState('bachata')
+  const [visibility, setVisibility] = useState<Visibility>('unlisted')
   const [file, setFile] = useState<File | null>(null)
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
@@ -133,13 +137,21 @@ export function LessonNew() {
       setSaveMsg('Bitte Course, Lesson-Nr, Video und mindestens ein Segment angeben.')
       return
     }
-    const lessonTitle = `Lesson ${lessonNumber}`
+    const lessonTitle = `Lektion ${lessonNumber}`
     setSaving(true)
-    setSaveMsg('Video wird hochgeladen…')
+    setSaveMsg('Speicherplatz wird geprüft…')
     try {
+      const used = await usedStorageBytes(user.id)
+      if (used + file.size > STORAGE_QUOTA_BYTES) {
+        const gb = (n: number) => (n / 1e9).toFixed(2)
+        setSaveMsg(`Fehler: Speicher voll (${gb(used)} GB belegt, Video ${gb(file.size)} GB, Limit ${gb(STORAGE_QUOTA_BYTES)} GB). Lösche zuerst Videos unter „Meine Videos".`)
+        setSaving(false)
+        return
+      }
+      setSaveMsg('Video wird hochgeladen…')
       const { videoId, url } = await uploadClassVideoSmart(file, user.id, {
         title: `${course.trim()} – ${lessonTitle}`,
-        visibility: 'public',
+        visibility,
         durationS: duration,
       })
 
@@ -184,7 +196,8 @@ export function LessonNew() {
           if (!hasPrimary && tgt?.owner_id === user.id) {
             const { error: ue } = await supabase
               .from('moves')
-              .update({ media_url: url, thumb_url: thumbUrl, clip_start: s.start, clip_end: s.end })
+              // link video_id too, so visibility changes on this video cascade to the move
+              .update({ media_url: url, thumb_url: thumbUrl, clip_start: s.start, clip_end: s.end, video_id: videoId })
               .eq('id', s.link.moveId)
             if (ue) throw ue
           } else {
@@ -219,7 +232,7 @@ export function LessonNew() {
             clip_end: s.end,
             lesson_id: lesson.id,
             video_id: videoId,
-            visibility: 'public',
+            visibility,
             variation_of: s.link?.mode === 'variation' ? s.link.moveId : null,
           })
           .select('id')
@@ -249,7 +262,7 @@ export function LessonNew() {
           clip_end: duration,
           lesson_id: lesson.id,
           video_id: videoId,
-          visibility: 'public',
+          visibility,
         })
         .select('id')
         .single()
@@ -258,6 +271,7 @@ export function LessonNew() {
         .from('combo_items')
         .insert(moveIds.map((mid, idx) => ({ combo_id: combo.id, move_id: mid, position: idx })))
 
+      for (const key of [['lessons'], ['moves'], ['discover'], ['my_videos']]) qc.invalidateQueries({ queryKey: key })
       navigate(`/lessons/${lesson.id}`)
     } catch (e) {
       setSaveMsg('Fehler: ' + (e as Error).message)
@@ -300,6 +314,16 @@ export function LessonNew() {
         rows={2}
         className={inputCls + ' resize-none'}
       />
+
+      <label className="block text-sm text-text-dim">
+        Sichtbarkeit
+        <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)} className={inputCls + ' mt-1'}>
+          <option value="private">🔒 Privat – nur für dich</option>
+          <option value="unlisted">🔗 Nicht gelistet – nur per Link (z.B. für Klassenkamerad:innen)</option>
+          <option value="public">🌍 Öffentlich – erscheint unter „Entdecken"</option>
+        </select>
+        <span className="mt-1 block text-xs text-text-dim">Gilt für das Video und alle daraus erzeugten Moves &amp; die Combo. Später unter „Meine Videos" änderbar.</span>
+      </label>
 
       {!fileUrl ? (
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border p-10 text-center text-text-dim transition hover:border-accent">

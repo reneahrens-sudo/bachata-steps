@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useLessonOptions } from '../hooks/useLessons'
+import { deleteMovesDeep } from '../lib/moveCleanup'
 import { ComboInput } from '../components/ui/ComboInput'
 
 export function LessonEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const qc = useQueryClient()
   const { data: options } = useLessonOptions()
 
   const [school, setSchool] = useState('')
@@ -44,7 +47,7 @@ export function LessonEdit() {
     setBusy(true)
     setErr(null)
     try {
-      const title = lessonNumber === '' ? course.trim() || 'Lesson' : `Lesson ${lessonNumber}`
+      const title = lessonNumber === '' ? course.trim() || 'Lektion' : `Lektion ${lessonNumber}`
       const { error } = await supabase
         .from('lessons')
         .update({
@@ -62,6 +65,8 @@ export function LessonEdit() {
         .update({ name: `${course.trim()} – ${title}` })
         .eq('lesson_id', id!)
         .eq('kind', 'combo')
+      qc.invalidateQueries({ queryKey: ['lessons'] })
+      qc.invalidateQueries({ queryKey: ['lesson', id] })
       navigate(`/lessons/${id}`)
     } catch (e) {
       setErr((e as Error).message)
@@ -70,24 +75,30 @@ export function LessonEdit() {
   }
 
   const del = async () => {
-    if (!confirm('Diese Class mit allen Moves löschen?')) return
+    if (!confirm('Diese Class mit allen Moves löschen? Verknüpfungen (Combos, Sammlungen) werden mit entfernt.')) return
     setBusy(true)
-    // Find this class's video, so we can also offer to remove clips that were assigned
-    // from it to OTHER moves (as extra videos).
-    const { data: combo } = await supabase.from('moves').select('media_url').eq('lesson_id', id!).eq('kind', 'combo').maybeSingle()
-    const videoUrl = combo?.media_url
-    if (videoUrl) {
-      const { count } = await supabase
-        .from('move_media')
-        .select('*', { count: 'exact', head: true })
-        .eq('media_url', videoUrl)
-      if ((count ?? 0) > 0 && confirm(`In anderen Moves gibt es ${count} zugeordnete Videoausschnitte aus dieser Class. Diese auch entfernen?`)) {
-        await supabase.from('move_media').delete().eq('media_url', videoUrl)
+    try {
+      // This class's own moves + combo (assigned catalog moves have no lesson_id and stay).
+      const { data: own } = await supabase.from('moves').select('id, media_url').eq('lesson_id', id!)
+      const videoUrl = (own ?? []).find((m) => m.media_url)?.media_url
+      // Offer to also remove clips that were assigned from this class's video to OTHER moves.
+      if (videoUrl) {
+        const { count } = await supabase
+          .from('move_media')
+          .select('*', { count: 'exact', head: true })
+          .eq('media_url', videoUrl)
+        if ((count ?? 0) > 0 && confirm(`In anderen Moves gibt es ${count} zugeordnete Videoausschnitte aus dieser Class. Diese auch entfernen?`)) {
+          await supabase.from('move_media').delete().eq('media_url', videoUrl)
+        }
       }
+      await deleteMovesDeep((own ?? []).map((m) => m.id))
+      await supabase.from('lessons').delete().eq('id', id!)
+      for (const key of [['lessons'], ['lesson', id], ['moves'], ['discover'], ['collections']]) qc.invalidateQueries({ queryKey: key })
+      navigate('/lessons')
+    } catch (e) {
+      setErr((e as Error).message)
+      setBusy(false)
     }
-    await supabase.from('moves').delete().eq('lesson_id', id!)
-    await supabase.from('lessons').delete().eq('id', id!)
-    navigate('/lessons')
   }
 
   const inputCls = 'w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-accent'

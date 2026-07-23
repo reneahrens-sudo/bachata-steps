@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useMyVideos, useSetVideoVisibility, useDeleteVideo, type MyVideo } from '../hooks/useVideos'
+import { STORAGE_QUOTA_BYTES } from '../lib/storage'
 
 const VIS = [
   { key: 'private', label: '🔒 Privat' },
@@ -9,11 +10,11 @@ const VIS = [
   { key: 'public', label: '🌍 Öffentlich' },
 ] as const
 
-const QUOTA_GB = 10
+const QUOTA_GB = STORAGE_QUOTA_BYTES / 1e9
 
 export function MyVideos() {
   const { user } = useAuth()
-  const { data: videos = [], isLoading } = useMyVideos()
+  const { data: videos = [], isLoading, isError, error } = useMyVideos()
   const setVis = useSetVideoVisibility()
   const del = useDeleteVideo()
   const [playing, setPlaying] = useState<MyVideo | null>(null)
@@ -49,7 +50,9 @@ export function MyVideos() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-6 text-center text-red-400">Fehler: {(error as Error).message}</div>
+      ) : isLoading ? (
         <p className="text-text-dim">Lädt…</p>
       ) : videos.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-text-dim">

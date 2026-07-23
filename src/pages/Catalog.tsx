@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react'
 import { useMoves, type MoveFilters as MF } from '../hooks/useMoves'
 import { useMyMoveData } from '../hooks/useMyMoveData'
+import { useAuth } from '../hooks/useAuth'
 import { MoveFilters } from '../components/moves/MoveFilters'
 import { MoveGrid } from '../components/moves/MoveGrid'
 import { STATUS_META, STATUS_ORDER } from '../lib/constants'
 import type { StatusFlag } from '../lib/types'
 
 export function Catalog() {
+  const { isRealUser } = useAuth()
   const [filters, setFilters] = useState<MF>({})
   const [statusFilter, setStatusFilter] = useState<StatusFlag | null>(null)
-  const { data: moves = [], isLoading } = useMoves(filters)
+  const { data: moves = [], isLoading, isError, error } = useMoves(filters)
   const { data: myData } = useMyMoveData()
 
   const shown = useMemo(() => {
@@ -36,6 +38,19 @@ export function Catalog() {
 
       {/* status filter row */}
       <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+        {isRealUser && (
+          <button
+            onClick={() => setFilters((f) => ({ ...f, onlyMine: !f.onlyMine }))}
+            className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
+            style={{
+              borderColor: filters.onlyMine ? 'var(--color-accent)' : 'var(--color-border)',
+              background: filters.onlyMine ? 'var(--color-accent-soft)' : 'transparent',
+              color: filters.onlyMine ? 'var(--color-accent)' : 'var(--color-text-dim)',
+            }}
+          >
+            👤 Nur meine
+          </button>
+        )}
         <button
           onClick={() => setStatusFilter(null)}
           className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
@@ -62,7 +77,11 @@ export function Catalog() {
         ))}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-6 text-center text-red-400">
+          Fehler beim Laden: {(error as Error).message}
+        </div>
+      ) : isLoading ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="animate-pulse rounded-2xl border border-border bg-card" style={{ aspectRatio: '3/4' }} />

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuth } from './useAuth'
 import type { Move } from '../lib/types'
 
 export type MoveFilters = {
@@ -12,8 +13,9 @@ export type MoveFilters = {
 }
 
 export function useMoves(filters: MoveFilters = {}) {
+  const { user } = useAuth()
   return useQuery({
-    queryKey: ['moves', filters],
+    queryKey: ['moves', filters, filters.onlyMine ? user?.id : null],
     queryFn: async (): Promise<Move[]> => {
       let q = supabase.from('moves').select('*').order('name', { ascending: true }).limit(1000)
 
@@ -21,6 +23,7 @@ export function useMoves(filters: MoveFilters = {}) {
       if (filters.category) q = q.eq('category', filters.category)
       if (filters.level) q = q.eq('level', filters.level)
       if (filters.kind) q = q.eq('kind', filters.kind)
+      if (filters.onlyMine && user) q = q.eq('owner_id', user.id)
       if (filters.search) {
         const s = filters.search.replace(/[%,()]/g, ' ').trim()
         q = q.or(`name.ilike.%${s}%,description.ilike.%${s}%`)

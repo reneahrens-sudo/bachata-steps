@@ -2,8 +2,17 @@ import { supabase } from './supabase'
 
 const BUCKET = 'videos'
 
+/** Per-user storage quota for uploaded class videos. */
+export const STORAGE_QUOTA_BYTES = 10 * 1e9
+
 export function publicVideoUrl(storagePath: string): string {
   return supabase.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl
+}
+
+/** Sum of the user's uploaded video sizes (bytes), for quota checks. */
+export async function usedStorageBytes(userId: string): Promise<number> {
+  const { data } = await supabase.from('videos').select('size_bytes').eq('owner_id', userId)
+  return (data ?? []).reduce((a, v) => a + (v.size_bytes ?? 0), 0)
 }
 
 /** Uploads a class video to Storage and inserts a `videos` row. Returns the video row id + url. */

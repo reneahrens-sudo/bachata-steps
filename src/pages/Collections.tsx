@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 
 export function Collections() {
   const { user } = useAuth()
-  const { data: collections = [], isLoading } = useCollections()
+  const { data: collections = [], isLoading, isError, error } = useCollections()
   const create = useCreateCollection()
   const [name, setName] = useState('')
 
@@ -49,7 +49,9 @@ export function Collections() {
         </button>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-6 text-center text-red-400">Fehler: {(error as Error).message}</div>
+      ) : isLoading ? (
         <p className="text-text-dim">Lädt…</p>
       ) : collections.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-text-dim">

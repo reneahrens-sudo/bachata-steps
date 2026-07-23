@@ -40,10 +40,10 @@ export function Profile() {
     )
 
   const save = async () => {
+    // upsert (not update) so it also works when no profiles row exists yet (e.g. fresh/anon session)
     const { error } = await supabase
       .from('profiles')
-      .update({ display_name: displayName, username: username || null })
-      .eq('id', user.id)
+      .upsert({ id: user.id, display_name: displayName, username: username || null })
     if (!error) {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -93,6 +93,12 @@ export function Profile() {
       </div>
 
       <div className="space-y-2">
+        <Link to="/sammlungen" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover md:hidden">
+          📚 Meine Sammlungen
+        </Link>
+        <Link to="/entdecken" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover md:hidden">
+          🌍 Entdecken
+        </Link>
         <Link to="/statistik" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
           📊 Meine Statistik
         </Link>

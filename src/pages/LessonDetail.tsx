@@ -32,7 +32,7 @@ export function LessonDetail() {
             </p>
           )}
           <h1 className="text-2xl font-bold">
-            {data.lesson.lesson_number != null ? `Lesson ${data.lesson.lesson_number}` : data.lesson.title}
+            {data.lesson.lesson_number != null ? `Lektion ${data.lesson.lesson_number}` : data.lesson.title}
           </h1>
           {data.lesson.notes && <p className="mt-1 whitespace-pre-wrap text-sm text-text-dim">{data.lesson.notes}</p>}
         </div>

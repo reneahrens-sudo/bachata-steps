@@ -7,7 +7,8 @@ import { extractYouTubeId } from '../lib/youtube'
 import { CATEGORIES, LEVELS, STYLES } from '../lib/constants'
 import { ComboBuilder } from '../components/combos/ComboBuilder'
 import { MoveClipEditor } from '../components/moves/MoveClipEditor'
-import type { SourceLink, Visibility } from '../lib/types'
+import { deleteMovesDeep } from '../lib/moveCleanup'
+import type { Move, SourceLink, Visibility } from '../lib/types'
 
 export function MoveForm() {
   const { id } = useParams()
@@ -85,7 +86,17 @@ export function MoveForm() {
         })
       }
       await supabase.from('move_media').update({ move_id: targetId }).eq('move_id', id)
-      await supabase.from('combo_items').update({ move_id: targetId }).eq('move_id', id)
+      // Repoint combo steps, but drop a step if the target is already in that combo (no duplicates).
+      const { data: steps } = await supabase.from('combo_items').select('id, combo_id').eq('move_id', id)
+      for (const st of steps ?? []) {
+        const { count } = await supabase
+          .from('combo_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('combo_id', st.combo_id)
+          .eq('move_id', targetId)
+        if (count && count > 0) await supabase.from('combo_items').delete().eq('id', st.id)
+        else await supabase.from('combo_items').update({ move_id: targetId }).eq('id', st.id)
+      }
       const { data: cis } = await supabase.from('collection_items').select('id, collection_id').eq('move_id', id)
       for (const ci of cis ?? []) {
         const { count } = await supabase
@@ -96,8 +107,9 @@ export function MoveForm() {
         if (count && count > 0) await supabase.from('collection_items').delete().eq('id', ci.id)
         else await supabase.from('collection_items').update({ move_id: targetId }).eq('id', ci.id)
       }
+      await supabase.from('move_user_data').delete().eq('move_id', id)
       await supabase.from('moves').delete().eq('id', id)
-      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['collections'], ['lessons']]) {
+      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['combo_items'], ['collections'], ['lessons'], ['discover']]) {
         qc.invalidateQueries({ queryKey: key })
       }
       navigate(`/move/${targetId}`)
@@ -128,6 +140,19 @@ export function MoveForm() {
         setVariationOf(data.variation_of ?? null)
         const links = (data.source_links as SourceLink[] | null) ?? []
         setSourceUrl(links[0]?.url ?? '')
+
+        // For combos, load the existing ordered steps so editing/saving preserves them.
+        if (data.kind === 'combo') {
+          supabase
+            .from('combo_items')
+            .select('position, move:moves!combo_items_move_id_fkey(id, name)')
+            .eq('combo_id', id!)
+            .order('position', { ascending: true })
+            .then(({ data: items }) => {
+              const rows = (items ?? []) as unknown as Array<{ move: Pick<Move, 'id' | 'name'> | null }>
+              setComboMoves(rows.map((r) => r.move).filter((m): m is { id: string; name: string } => !!m))
+            })
+        }
       })
   }, [editing, id])
 
@@ -183,7 +208,7 @@ export function MoveForm() {
       }
 
       // refresh caches so the edited move + its relationships show immediately
-      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['related']]) {
+      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['related'], ['discover'], ['lessons'], ['combo_items', moveId]]) {
         qc.invalidateQueries({ queryKey: key })
       }
 
@@ -194,11 +219,14 @@ export function MoveForm() {
           .select('*', { count: 'exact', head: true })
           .eq('combo_id', comboParam)
         await supabase.from('combo_items').insert({ combo_id: comboParam, move_id: moveId, position: count ?? 0 })
+        qc.invalidateQueries({ queryKey: ['combo_items', comboParam] })
+        qc.invalidateQueries({ queryKey: ['move', comboParam] })
         navigate(`/move/${comboParam}`)
         return
       }
 
       if (lessonParam && !editing) {
+        qc.invalidateQueries({ queryKey: ['lesson', lessonParam] })
         navigate(`/lessons/${lessonParam}`)
         return
       }
@@ -212,11 +240,19 @@ export function MoveForm() {
   }
 
   const del = async () => {
-    if (!editing || !confirm('Diesen Move wirklich löschen?')) return
+    const label = kind === 'combo' ? 'Diese Combo' : 'Diesen Move'
+    if (!editing || !confirm(`${label} wirklich löschen? Verknüpfungen (Combos, Sammlungen, Zusatzvideos) werden mit entfernt.`)) return
     setBusy(true)
-    const { error } = await supabase.from('moves').delete().eq('id', id!)
-    if (error) { setErr(error.message); setBusy(false); return }
-    navigate('/katalog')
+    try {
+      await deleteMovesDeep([id!])
+      for (const key of [['move'], ['family'], ['moves'], ['move_media'], ['related'], ['discover'], ['lessons'], ['collections']]) {
+        qc.invalidateQueries({ queryKey: key })
+      }
+      navigate('/katalog')
+    } catch (e) {
+      setErr((e as Error).message)
+      setBusy(false)
+    }
   }
 
   const input = 'w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-accent'
@@ -402,7 +438,7 @@ export function MoveForm() {
 
       {editing && (
         <button type="button" onClick={del} disabled={busy} className="w-full rounded-xl border border-red-500/40 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10">
-          🗑 Move löschen
+          🗑 {kind === 'combo' ? 'Combo' : 'Move'} löschen
         </button>
       )}
     </form>

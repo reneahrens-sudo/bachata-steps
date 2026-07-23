@@ -49,7 +49,12 @@ export function Import() {
         }),
       )
       // dedupe via legacy_id where present; plain insert for the rest
-      const withId = payload.filter((p) => p.legacy_id)
+      const seen = new Set<string>()
+      const withId = payload.filter((p) => {
+        if (!p.legacy_id || seen.has(p.legacy_id)) return false // drop dupes in the same batch (upsert can't touch a row twice)
+        seen.add(p.legacy_id)
+        return true
+      })
       const noId = payload.filter((p) => !p.legacy_id)
       if (withId.length) {
         const { error } = await supabase.from('moves').upsert(withId, { onConflict: 'legacy_id' })
@@ -60,7 +65,9 @@ export function Import() {
         if (error) throw error
       }
       qc.invalidateQueries({ queryKey: ['moves'] })
-      setResult(`✓ ${payload.length} Einträge importiert.`)
+      qc.invalidateQueries({ queryKey: ['discover'] })
+      const imported = withId.length + noId.length
+      setResult(`✓ ${imported} Einträge importiert${imported < payload.length ? ` (${payload.length - imported} Duplikate übersprungen)` : ''}.`)
       setRows(null)
       setText('')
     } catch (e) {

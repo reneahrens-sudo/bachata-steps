@@ -5,7 +5,7 @@ import type { Lesson } from '../lib/types'
 type LessonRow = Lesson & { count: number; moveNames: string[] }
 
 export function Lessons() {
-  const { data: lessons = [], isLoading } = useLessons()
+  const { data: lessons = [], isLoading, isError, error } = useLessons()
 
   // Nested grouping: School → Course → Lessons (sorted by lesson number)
   const bySchool = new Map<string, Map<string, LessonRow[]>>()
@@ -29,7 +29,9 @@ export function Lessons() {
         </Link>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-6 text-center text-red-400">Fehler: {(error as Error).message}</div>
+      ) : isLoading ? (
         <p className="text-text-dim">Lädt…</p>
       ) : lessons.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-text-dim">
@@ -55,7 +57,7 @@ export function Lessons() {
                     >
                       <div className="min-w-0">
                         <h4 className="font-semibold">
-                          {l.lesson_number != null ? `Lesson ${l.lesson_number}` : l.title}
+                          {l.lesson_number != null ? `Lektion ${l.lesson_number}` : l.title}
                         </h4>
                         <p className="text-xs text-text-dim">{l.count} Moves</p>
                         {l.moveNames.length > 0 && (

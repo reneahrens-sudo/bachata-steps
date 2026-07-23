@@ -69,6 +69,76 @@ export function useCreateCollection() {
   })
 }
 
+/** Makes a collection shareable: ensures a share_slug and sets visibility to 'unlisted'. Returns the slug. */
+export function useShareCollection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ collectionId, currentSlug }: { collectionId: string; currentSlug: string | null }) => {
+      const slug = currentSlug || crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+      const { error } = await supabase
+        .from('collections')
+        .update({ share_slug: slug, visibility: 'unlisted' })
+        .eq('id', collectionId)
+      if (error) throw error
+      return slug
+    },
+    onSuccess: (_s, v) => {
+      qc.invalidateQueries({ queryKey: ['collection', v.collectionId] })
+      qc.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+/** Renames / re-describes a collection. */
+export function useUpdateCollection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ collectionId, name, description }: { collectionId: string; name?: string; description?: string | null }) => {
+      const patch: { name?: string; description?: string | null } = {}
+      if (name !== undefined) patch.name = name
+      if (description !== undefined) patch.description = description
+      const { error } = await supabase.from('collections').update(patch).eq('id', collectionId)
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['collection', v.collectionId] })
+      qc.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+/** Removes a single move from a collection. */
+export function useRemoveFromCollection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ collectionId, moveId }: { collectionId: string; moveId: string }) => {
+      const { error } = await supabase.from('collection_items').delete().eq('collection_id', collectionId).eq('move_id', moveId)
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['collection', v.collectionId] })
+      qc.invalidateQueries({ queryKey: ['collections'] })
+    },
+  })
+}
+
+/** Persists a new order of move ids as collection_items.position. */
+export function useReorderCollection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ collectionId, orderedMoveIds }: { collectionId: string; orderedMoveIds: string[] }) => {
+      await Promise.all(
+        orderedMoveIds.map((moveId, i) =>
+          supabase.from('collection_items').update({ position: i }).eq('collection_id', collectionId).eq('move_id', moveId),
+        ),
+      )
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['collection', v.collectionId] })
+    },
+  })
+}
+
 export function useAddToCollection() {
   const qc = useQueryClient()
   return useMutation({

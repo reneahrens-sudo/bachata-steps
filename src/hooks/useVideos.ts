@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { deleteVideoObject, publicVideoUrl } from '../lib/storage'
+import { deleteMovesDeep } from '../lib/moveCleanup'
 import { useAuth } from './useAuth'
 import type { VideoRow } from '../lib/types'
 
@@ -57,26 +58,15 @@ export function useDeleteVideo() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ videoId, storagePath }: { videoId: string; storagePath: string }) => {
-      // 1. Collect derived moves/combos.
-      const { data: moves } = await supabase.from('moves').select('id, media_url').eq('video_id', videoId)
-      const moveIds = (moves ?? []).map((m) => m.id)
-      if (moveIds.length) {
-        // 2. Remove dependents that have no FK cascade guarantee.
-        await supabase.from('combo_items').delete().in('move_id', moveIds)
-        await supabase.from('combo_items').delete().in('combo_id', moveIds)
-        await supabase.from('collection_items').delete().in('move_id', moveIds)
-        await supabase.from('move_media').delete().in('move_id', moveIds)
-        await supabase.from('move_user_data').delete().in('move_id', moveIds)
-        // 3. Delete the moves themselves.
-        const { error: dm } = await supabase.from('moves').delete().in('id', moveIds)
-        if (dm) throw dm
-      }
-      // 4. Detach any lesson that pointed at this video.
+      // 1. Delete all moves/combos derived from this video (+ their dependents).
+      const { data: moves } = await supabase.from('moves').select('id').eq('video_id', videoId)
+      await deleteMovesDeep((moves ?? []).map((m) => m.id))
+      // 2. Detach any lesson that pointed at this video, then delete the lesson if now empty.
       await supabase.from('lessons').update({ video_id: null }).eq('video_id', videoId)
-      // 5. Delete the videos row.
+      // 3. Delete the videos row.
       const { error: dv } = await supabase.from('videos').delete().eq('id', videoId)
       if (dv) throw dv
-      // 6. Free the stored object (best-effort — the DB is already consistent).
+      // 4. Free the stored object (best-effort — the DB is already consistent).
       try { await deleteVideoObject(storagePath) } catch (e) { console.warn('Storage-Objekt konnte nicht gelöscht werden:', e) }
     },
     onSuccess: () => {
