@@ -10,7 +10,7 @@ import { MoveNameField, type MoveLink } from '../components/moves/MoveNameField'
 import { ComboInput } from '../components/ui/ComboInput'
 import { useLessonOptions } from '../hooks/useLessons'
 import { attachPreview } from '../lib/previewPipeline'
-import { canTranscodeInBrowser, PREVIEW_MAX_SECONDS } from '../lib/previewClip'
+import { canTranscodeInBrowser, COMBO_PREVIEW_MAX_SECONDS } from '../lib/previewClip'
 import type { Visibility } from '../lib/types'
 
 type Seg = Segment & { name: string; category: string; level: number | ''; link: MoveLink }
@@ -178,9 +178,9 @@ export function LessonNew() {
       // Generate small catalog preview clips from the LOCAL file (cheap: input-seek, no re-download).
       // Optional optimization — failures are ignored (catalog falls back to the full video).
       const canPreview = canTranscodeInBrowser(file.size)
-      const genPreview = async (moveId: string, from: number, to: number) => {
+      const genPreview = async (moveId: string, from: number, to: number, maxSeconds?: number) => {
         if (!canPreview) return
-        try { await attachPreview({ moveId, source: file, start: from, end: to, userId: user.id }) }
+        try { await attachPreview({ moveId, source: file, start: from, end: to, userId: user.id, maxSeconds }) }
         catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
       }
       for (let i = 0; i < segs.length; i++) {
@@ -285,7 +285,7 @@ export function LessonNew() {
         .insert(moveIds.map((mid, idx) => ({ combo_id: combo.id, move_id: mid, position: idx })))
 
       setSaveMsg('Vorschau-Clip der Combo wird erstellt…')
-      await genPreview(combo.id, 0, Math.min(duration || PREVIEW_MAX_SECONDS, PREVIEW_MAX_SECONDS))
+      await genPreview(combo.id, 0, duration || COMBO_PREVIEW_MAX_SECONDS, COMBO_PREVIEW_MAX_SECONDS)
 
       for (const key of [['lessons'], ['moves'], ['discover'], ['my_videos']]) qc.invalidateQueries({ queryKey: key })
       navigate(`/lessons/${lesson.id}`)

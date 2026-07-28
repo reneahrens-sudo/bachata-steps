@@ -1,10 +1,12 @@
 import { supabase } from './supabase'
-import { makePreviewClip, canTranscodeInBrowser, PREVIEW_MAX_SECONDS } from './previewClip'
+import { makePreviewClip, canTranscodeInBrowser, COMBO_PREVIEW_MAX_SECONDS } from './previewClip'
 import { uploadPreviewClip, deleteVideoObject } from './storage'
 
 const isNativeVideo = (u: string | null) => !!u && /\.(mp4|webm|mov)(\?|$)/i.test(u)
+/** Combos (whole class video) get capped; individual moves play their full clip. */
+const capFor = (kind: string | null | undefined) => (kind === 'combo' ? COMBO_PREVIEW_MAX_SECONDS : undefined)
 
-type PreviewMove = { id: string; media_url: string | null; clip_start: number | null; clip_end: number | null; preview_path: string | null }
+type PreviewMove = { id: string; kind?: string | null; media_url: string | null; clip_start: number | null; clip_end: number | null; preview_path: string | null }
 
 /** Generate a preview clip from a local/blob source, upload it, point the move at it, delete the old one. */
 export async function attachPreview(opts: {
@@ -14,9 +16,10 @@ export async function attachPreview(opts: {
   end: number
   userId: string
   oldPath?: string | null
+  maxSeconds?: number
   onProgress?: (p: number) => void
 }): Promise<string> {
-  const blob = await makePreviewClip(opts.source, opts.start, opts.end, opts.onProgress)
+  const blob = await makePreviewClip(opts.source, opts.start, opts.end, { maxSeconds: opts.maxSeconds, onProgress: opts.onProgress })
   const { url, key } = await uploadPreviewClip(blob, opts.userId)
   const { error } = await supabase.from('moves').update({ preview_url: url, preview_path: key }).eq('id', opts.moveId)
   if (error) throw error
@@ -48,7 +51,7 @@ export async function backfillPreviews(
 ): Promise<BackfillProgress> {
   const { data } = await supabase
     .from('moves')
-    .select('id, media_url, clip_start, clip_end, preview_path, preview_url')
+    .select('id, kind, media_url, clip_start, clip_end, preview_path, preview_url')
     .eq('owner_id', userId)
     .is('preview_url', null)
   const candidates = (data ?? []).filter((m) => isNativeVideo(m.media_url))
@@ -91,9 +94,10 @@ export async function backfillPreviews(
       prog.message = `Video ${g + 1}/${groupArr.length} · Ausschnitt ${i + 1}/${moves.length}`
       onProgress({ ...prog })
       try {
+        const cap = capFor(m.kind)
         const start = m.clip_start ?? 0
-        const end = m.clip_end ?? start + PREVIEW_MAX_SECONDS
-        await attachPreview({ moveId: m.id, source: blob, start, end, userId, oldPath: m.preview_path })
+        const end = m.clip_end ?? start + (cap ?? COMBO_PREVIEW_MAX_SECONDS)
+        await attachPreview({ moveId: m.id, source: blob, start, end, userId, oldPath: m.preview_path, maxSeconds: cap })
         prog.done += 1
       } catch {
         prog.failed += 1
@@ -143,6 +147,7 @@ export async function regeneratePreview(move: PreviewMove, userId: string, onPro
       end: move.clip_end!,
       userId,
       oldPath: move.preview_path,
+      maxSeconds: capFor(move.kind),
       onProgress,
     })
   } catch {

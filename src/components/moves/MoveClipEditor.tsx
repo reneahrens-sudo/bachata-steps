@@ -130,7 +130,7 @@ export function MoveClipEditor({ moveId }: { moveId: string }) {
         setRegen(true)
         try {
           await regeneratePreview(
-            { id: move.id, media_url: move.media_url, clip_start: patch.clip_start, clip_end: patch.clip_end, preview_path: move.preview_path },
+            { id: move.id, kind: move.kind, media_url: move.media_url, clip_start: patch.clip_start, clip_end: patch.clip_end, preview_path: move.preview_path },
             move.owner_id,
           )
         } finally { setRegen(false) }

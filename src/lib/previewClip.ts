@@ -1,8 +1,9 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
-/** Max length of a generated preview loop (seconds) and max width (px) — keeps files ~<1 MB. */
-export const PREVIEW_MAX_SECONDS = 6
+/** Combos reference the WHOLE class video, so their preview is capped; individual moves play their
+ *  full clip (they're already short). Width cap keeps files small. */
+export const COMBO_PREVIEW_MAX_SECONDS = 8
 const PREVIEW_MAX_WIDTH = 480
 
 // Single-thread core (no SharedArrayBuffer → no COOP/COEP, so R2 media keeps loading). Loads lazily
@@ -38,11 +39,19 @@ export function canTranscodeInBrowser(sourceBytes: number): boolean {
 
 /**
  * Cuts a small, compressed, muted preview clip [start,end] from `source` for catalog auto-loops.
+ * `maxSeconds` optionally caps the length (used for combos); moves pass none → full clip.
  * Input-seeks (`-ss` before `-i`) so it doesn't decode from the top. Returns an mp4 Blob.
  * Throws on failure — callers treat the preview as optional and fall back to the full video.
  */
-export async function makePreviewClip(source: Blob, start: number, end: number, onProgress?: (p: number) => void): Promise<Blob> {
-  const dur = Math.max(0.5, Math.min(end - start, PREVIEW_MAX_SECONDS))
+export async function makePreviewClip(
+  source: Blob,
+  start: number,
+  end: number,
+  opts: { maxSeconds?: number; onProgress?: (p: number) => void } = {},
+): Promise<Blob> {
+  const raw = Math.max(0.5, end - start)
+  const dur = opts.maxSeconds ? Math.min(raw, opts.maxSeconds) : raw
+  const onProgress = opts.onProgress
   const ff = await getFFmpeg()
   const onProg = ({ progress }: { progress: number }) => onProgress?.(Math.min(100, Math.round(progress * 100)))
   ff.on('progress', onProg)
