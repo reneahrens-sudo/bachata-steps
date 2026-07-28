@@ -30,13 +30,17 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
   const [playing, setPlaying] = useState(false) // video visible only once it truly plays
 
   const thumb = thumbFor(move)
-  const hasVideo = isVideoUrl(move.media_url)
+  // Prefer the small derived preview clip; fall back to the full video + clip range.
+  const usePreview = isVideoUrl(move.preview_url)
+  const videoSrc = usePreview ? move.preview_url! : move.media_url
+  const hasVideo = isVideoUrl(videoSrc)
   const levelColor = move.level ? LEVEL_COLORS[move.level] : 'var(--color-border)'
   const sourceUrl = ((move.source_links as SourceLink[] | null) ?? [])[0]?.url ?? null
   const detailUrl = `/move/${move.id}`
 
-  const start = move.clip_start ?? 0
-  const end = move.clip_end ?? undefined
+  // Preview clips are already trimmed → play the whole file on loop; otherwise loop the clip range.
+  const start = usePreview ? 0 : (move.clip_start ?? 0)
+  const end = usePreview ? undefined : (move.clip_end ?? undefined)
 
   // Mount the (heavy) <video> only while the card is near the viewport, and UNMOUNT it again
   // when scrolled well away — this bounds how many video decoders exist at once (crucial on iOS)
@@ -68,7 +72,7 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
       { threshold: 0.25 },
     )
     io.observe(v)
-    const onLoaded = () => { if (move.clip_start != null) v.currentTime = start }
+    const onLoaded = () => { if (!usePreview && move.clip_start != null) v.currentTime = start }
     const onTime = () => { if (end != null && v.currentTime >= end - 0.05) v.currentTime = start }
     const onPlaying = () => setPlaying(true)
     v.addEventListener('loadedmetadata', onLoaded)
@@ -80,7 +84,7 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
       v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('playing', onPlaying)
     }
-  }, [mounted, start, end, move.media_url, move.clip_start])
+  }, [mounted, start, end, videoSrc, usePreview, move.clip_start])
 
   const stop = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation() }
 
@@ -139,7 +143,7 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
           {hasVideo && mounted && (
             <video
               ref={videoRef}
-              src={move.media_url ?? undefined}
+              src={videoSrc ?? undefined}
               muted={muted}
               loop
               playsInline

@@ -160,6 +160,8 @@ export type Database = {
           clip_end: number | null
           lesson_id: string | null
           variation_of: string | null
+          preview_url: string | null
+          preview_path: string | null
         }
         Insert: {
           category?: string | null
@@ -185,6 +187,8 @@ export type Database = {
           clip_end?: number | null
           lesson_id?: string | null
           variation_of?: string | null
+          preview_url?: string | null
+          preview_path?: string | null
         }
         Update: {
           category?: string | null
@@ -210,6 +214,8 @@ export type Database = {
           clip_end?: number | null
           lesson_id?: string | null
           variation_of?: string | null
+          preview_url?: string | null
+          preview_path?: string | null
         }
         Relationships: []
       }

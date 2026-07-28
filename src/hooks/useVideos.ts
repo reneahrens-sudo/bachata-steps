@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { deleteVideoObject, publicVideoUrl } from '../lib/storage'
 import { deleteMovesDeep } from '../lib/moveCleanup'
+import { clearPreview } from '../lib/previewPipeline'
 import { useAuth } from './useAuth'
 import type { VideoRow } from '../lib/types'
 
@@ -69,7 +70,7 @@ export function useDeleteVideo() {
   return useMutation({
     mutationFn: async ({ videoId, storagePath, publicUrl }: { videoId: string; storagePath: string; publicUrl: string | null }) => {
       // 1. Moves whose PRIMARY source is this video.
-      const { data: primaryMoves } = await supabase.from('moves').select('id, youtube_id').eq('video_id', videoId)
+      const { data: primaryMoves } = await supabase.from('moves').select('id, youtube_id, preview_path').eq('video_id', videoId)
       const toDelete: string[] = []
       for (const m of primaryMoves ?? []) {
         // Look for an alternative source on this move (another video, not this one).
@@ -91,9 +92,12 @@ export function useDeleteVideo() {
             })
             .eq('id', m.id)
           await supabase.from('move_media').delete().eq('id', alt.id)
+          // The move's source changed → its old preview clip is stale (catalog falls back to the new source).
+          await clearPreview({ id: m.id, preview_path: m.preview_path })
         } else if (m.youtube_id) {
           // Move also had a YouTube source alongside the video → just drop the video part.
           await supabase.from('moves').update({ media_url: null, clip_start: null, clip_end: null, video_id: null }).eq('id', m.id)
+          await clearPreview({ id: m.id, preview_path: m.preview_path })
         } else {
           toDelete.push(m.id)
         }

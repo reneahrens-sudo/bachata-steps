@@ -9,6 +9,8 @@ import { CATEGORIES, LEVELS, STYLES } from '../lib/constants'
 import { MoveNameField, type MoveLink } from '../components/moves/MoveNameField'
 import { ComboInput } from '../components/ui/ComboInput'
 import { useLessonOptions } from '../hooks/useLessons'
+import { attachPreview } from '../lib/previewPipeline'
+import { canTranscodeInBrowser, PREVIEW_MAX_SECONDS } from '../lib/previewClip'
 import type { Visibility } from '../lib/types'
 
 type Seg = Segment & { name: string; category: string; level: number | ''; link: MoveLink }
@@ -173,6 +175,14 @@ export function LessonNew() {
       const v = videoRef.current!
       const moveIds: string[] = []
       const lessonLabel = `${course.trim()} – ${lessonTitle}`
+      // Generate small catalog preview clips from the LOCAL file (cheap: input-seek, no re-download).
+      // Optional optimization — failures are ignored (catalog falls back to the full video).
+      const canPreview = canTranscodeInBrowser(file.size)
+      const genPreview = async (moveId: string, from: number, to: number) => {
+        if (!canPreview) return
+        try { await attachPreview({ moveId, source: file, start: from, end: to, userId: user.id }) }
+        catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
+      }
       for (let i = 0; i < segs.length; i++) {
         const s = segs[i]
         setSaveMsg(`Segment ${i + 1}/${segs.length} wird verarbeitet…`)
@@ -200,6 +210,7 @@ export function LessonNew() {
               .update({ media_url: url, thumb_url: thumbUrl, clip_start: s.start, clip_end: s.end, video_id: videoId })
               .eq('id', s.link.moveId)
             if (ue) throw ue
+            await genPreview(s.link.moveId, s.start, s.end)
           } else {
             const { error: mme } = await supabase.from('move_media').insert({
               move_id: s.link.moveId,
@@ -239,6 +250,8 @@ export function LessonNew() {
           .single()
         if (me) throw me
         moveIds.push(move.id)
+        setSaveMsg(`Vorschau-Clip ${i + 1}/${segs.length} wird erstellt…`)
+        await genPreview(move.id, s.start, s.end)
       }
 
       setSaveMsg('Combo wird erstellt…')
@@ -270,6 +283,9 @@ export function LessonNew() {
       await supabase
         .from('combo_items')
         .insert(moveIds.map((mid, idx) => ({ combo_id: combo.id, move_id: mid, position: idx })))
+
+      setSaveMsg('Vorschau-Clip der Combo wird erstellt…')
+      await genPreview(combo.id, 0, Math.min(duration || PREVIEW_MAX_SECONDS, PREVIEW_MAX_SECONDS))
 
       for (const key of [['lessons'], ['moves'], ['discover'], ['my_videos']]) qc.invalidateQueries({ queryKey: key })
       navigate(`/lessons/${lesson.id}`)

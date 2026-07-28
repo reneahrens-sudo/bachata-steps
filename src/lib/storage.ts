@@ -94,6 +94,26 @@ export async function uploadClassVideoSmart(
   return uploadClassVideo(file, userId, opts)
 }
 
+/** Uploads a small preview clip and returns its public URL + storage key (for later cleanup). */
+export async function uploadPreviewClip(blob: Blob, userId: string): Promise<{ url: string; key: string }> {
+  if (import.meta.env.VITE_STORAGE_BACKEND === 'r2') {
+    const { data, error } = await supabase.functions.invoke('r2-presign', {
+      body: { filename: 'preview.mp4', contentType: 'video/mp4' },
+    })
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+    const { uploadUrl, publicUrl, key } = data as { uploadUrl: string; publicUrl: string; key: string }
+    if (!publicUrl) throw new Error('R2 ohne öffentliche URL konfiguriert.')
+    const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'video/mp4' }, body: blob })
+    if (!put.ok) throw new Error(`Preview-Upload fehlgeschlagen (HTTP ${put.status}).`)
+    return { url: publicUrl, key }
+  }
+  const key = `${userId}/previews/${crypto.randomUUID()}.mp4`
+  const { error } = await supabase.storage.from(BUCKET).upload(key, blob, { contentType: 'video/mp4', upsert: false })
+  if (error) throw error
+  return { url: publicVideoUrl(key), key }
+}
+
 /** Deletes a stored video object from the active backend (R2 via edge fn, or Supabase Storage). */
 export async function deleteVideoObject(storagePath: string): Promise<void> {
   if (!storagePath) return

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useMove } from '../../hooks/useMoves'
 import { useMoveSources, useDeleteMoveMedia, useUpdateMoveMedia } from '../../hooks/useMoveMedia'
+import { regeneratePreview, clearPreview } from '../../lib/previewPipeline'
 import { thumbForSource } from './MediaPreview'
 import { AddVideoForm } from './AddVideoForm'
 import { YouTubePlayer, type YTHandle } from './YouTubePlayer'
@@ -40,6 +41,7 @@ export function MoveClipEditor({ moveId }: { moveId: string }) {
   const [cur, setCur] = useState(0)
   const [speed, setSpeed] = useState(1)
   const [saved, setSaved] = useState(false)
+  const [regen, setRegen] = useState(false)
 
   const native = isNativeVideo(sel?.media_url)
   const isYT = !!sel?.youtube_id && !native
@@ -122,6 +124,17 @@ export function MoveClipEditor({ moveId }: { moveId: string }) {
     const patch = { clip_start: +start.toFixed(2), clip_end: +end.toFixed(2) }
     if (isPrimary) {
       await supabase.from('moves').update(patch).eq('id', move.id)
+      // The catalog preview clip is derived from this range → rebuild it (old one is cleaned up).
+      // The full original video is untouched, so the range stays freely editable afterwards.
+      if (isNativeVideo(move.media_url) && move.owner_id) {
+        setRegen(true)
+        try {
+          await regeneratePreview(
+            { id: move.id, media_url: move.media_url, clip_start: patch.clip_start, clip_end: patch.clip_end, preview_path: move.preview_path },
+            move.owner_id,
+          )
+        } finally { setRegen(false) }
+      }
       qc.invalidateQueries({ queryKey: ['move', move.id] })
       qc.invalidateQueries({ queryKey: ['moves'] })
       qc.invalidateQueries({ queryKey: ['move_media', move.id] })
@@ -137,6 +150,7 @@ export function MoveClipEditor({ moveId }: { moveId: string }) {
     if (isPrimary) {
       if (!confirm('Hauptvideo dieses Moves entfernen?')) return
       await supabase.from('moves').update({ media_url: null, youtube_id: null, thumb_url: null, clip_start: null, clip_end: null }).eq('id', move.id)
+      await clearPreview({ id: move.id, preview_path: move.preview_path }) // no source → no catalog preview clip
       qc.invalidateQueries({ queryKey: ['move', move.id] })
       qc.invalidateQueries({ queryKey: ['moves'] })
     } else {
@@ -263,8 +277,8 @@ export function MoveClipEditor({ moveId }: { moveId: string }) {
           🗑 Video entfernen
         </button>
         {editable && (
-          <button type="button" onClick={save} className="ml-auto rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white">
-            {saved ? '✓ Gespeichert' : 'Ausschnitt speichern'}
+          <button type="button" onClick={save} disabled={regen} className="ml-auto rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60">
+            {regen ? 'Erzeuge Vorschau…' : saved ? '✓ Gespeichert' : 'Ausschnitt speichern'}
           </button>
         )}
       </div>
