@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../hooks/useAuth'
 import { useMyVideos, useSetVideoVisibility, useDeleteVideo, type MyVideo } from '../hooks/useVideos'
 import { STORAGE_QUOTA_BYTES } from '../lib/storage'
+import { backfillPreviews, countMissingPreviews, type BackfillProgress } from '../lib/previewPipeline'
 
 const VIS = [
   { key: 'private', label: '🔒 Privat' },
@@ -14,11 +16,27 @@ const QUOTA_GB = STORAGE_QUOTA_BYTES / 1e9
 
 export function MyVideos() {
   const { user } = useAuth()
+  const qc = useQueryClient()
   const { data: videos = [], isLoading, isError, error } = useMyVideos()
   const setVis = useSetVideoVisibility()
   const del = useDeleteVideo()
   const [playing, setPlaying] = useState<MyVideo | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  const [backfill, setBackfill] = useState<BackfillProgress | null>(null)
+  const cancelRef = useRef(false)
+  const { data: missing = 0, refetch: refetchMissing } = useQuery({
+    queryKey: ['missing_previews', user?.id],
+    enabled: !!user,
+    queryFn: () => countMissingPreviews(user!.id),
+  })
+  const runBackfill = async () => {
+    if (!user) return
+    cancelRef.current = false
+    await backfillPreviews(user.id, setBackfill, () => cancelRef.current)
+    refetchMissing()
+    qc.invalidateQueries({ queryKey: ['moves'] })
+  }
 
   if (!user)
     return (
@@ -49,6 +67,44 @@ export function MyVideos() {
           <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
         </div>
       </div>
+
+      {/* one-time backfill: generate small preview clips for existing classes */}
+      {(missing > 0 || backfill) && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-semibold">Schnelle Vorschau-Clips</h2>
+          <p className="mt-1 text-sm text-text-dim">
+            Erzeugt kleine Katalog-Vorschauen aus deinen bestehenden Class-Videos, damit der Katalog schnell lädt
+            (wie bei neuen Uploads). Die Originalvideos bleiben unverändert. Am besten am Desktop mit gutem WLAN starten.
+          </p>
+          {backfill?.running ? (
+            <div className="mt-3 space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-bg">
+                <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${backfill.total ? Math.round(((backfill.done + backfill.failed + backfill.skipped) / backfill.total) * 100) : 0}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-sm text-text-dim">
+                <span>{backfill.message} · {backfill.done}/{backfill.total}</span>
+                <button onClick={() => (cancelRef.current = true)} className="rounded-lg border border-border px-3 py-1 font-medium">Abbrechen</button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex items-center gap-3">
+              {missing > 0 && (
+                <button onClick={runBackfill} className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white">
+                  Vorschau-Clips erzeugen ({missing})
+                </button>
+              )}
+              {backfill && (
+                <span className="text-sm text-text-dim">
+                  {backfill.message} {backfill.done} erstellt
+                  {backfill.failed ? `, ${backfill.failed} fehlgeschlagen` : ''}
+                  {backfill.skipped ? `, ${backfill.skipped} übersprungen (zu groß)` : ''}
+                  {missing > 0 ? ` · noch ${missing} offen` : ''}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {isError ? (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-6 text-center text-red-400">Fehler: {(error as Error).message}</div>
