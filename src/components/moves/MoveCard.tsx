@@ -26,6 +26,8 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
   const [speedIdx, setSpeedIdx] = useState(0)
   const [picker, setPicker] = useState(false)
   const [shared, setShared] = useState(false)
+  const [mounted, setMounted] = useState(false) // video element created only near the viewport
+  const [playing, setPlaying] = useState(false) // video visible only once it truly plays
 
   const thumb = thumbFor(move)
   const hasVideo = isVideoUrl(move.media_url)
@@ -36,10 +38,28 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
   const start = move.clip_start ?? 0
   const end = move.clip_end ?? undefined
 
-  // Auto-loop the (muted) preview only while on screen.
+  // Mount the (heavy) <video> only while the card is near the viewport, and UNMOUNT it again
+  // when scrolled well away — this bounds how many video decoders exist at once (crucial on iOS)
+  // and avoids dozens of parallel downloads. The thumbnail stays visible either way.
+  useEffect(() => {
+    const el = mediaRef.current
+    if (!el || !hasVideo) return
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        setMounted(entry.isIntersecting)
+        if (!entry.isIntersecting) setPlaying(false)
+      },
+      { rootMargin: '250px 0px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasVideo])
+
+  // Once mounted: auto-loop the muted preview only while on screen. The <video> stays hidden
+  // (thumbnail shows through) until it actually plays, so tiles never flash black while buffering.
   useEffect(() => {
     const v = videoRef.current
-    if (!v) return
+    if (!v || !mounted) return
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) v.play().catch(() => {})
@@ -50,14 +70,17 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
     io.observe(v)
     const onLoaded = () => { if (move.clip_start != null) v.currentTime = start }
     const onTime = () => { if (end != null && v.currentTime >= end - 0.05) v.currentTime = start }
+    const onPlaying = () => setPlaying(true)
     v.addEventListener('loadedmetadata', onLoaded)
     v.addEventListener('timeupdate', onTime)
+    v.addEventListener('playing', onPlaying)
     return () => {
       io.disconnect()
       v.removeEventListener('loadedmetadata', onLoaded)
       v.removeEventListener('timeupdate', onTime)
+      v.removeEventListener('playing', onPlaying)
     }
-  }, [start, end, move.media_url, move.clip_start])
+  }, [mounted, start, end, move.media_url, move.clip_start])
 
   const stop = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation() }
 
@@ -105,22 +128,24 @@ export function MoveCard({ move, data }: { move: Move; data?: MoveUserData }) {
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/60 hover:shadow-lg hover:shadow-black/20">
       <div ref={mediaRef} className="relative bg-bg-soft" style={{ aspectRatio: '4/3' }}>
-        <Link to={detailUrl} className="block h-full w-full">
-          {hasVideo ? (
+        <Link to={detailUrl} className="relative block h-full w-full">
+          {/* base layer — always visible instantly (thumbnail or placeholder) */}
+          {thumb ? (
+            <img src={thumb} alt={move.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="absolute inset-0 grid place-items-center text-4xl text-text-dim">{move.kind === 'combo' ? '🎬' : '💃'}</div>
+          )}
+          {/* video overlay — lazy-mounted, fades in only once it actually plays */}
+          {hasVideo && mounted && (
             <video
               ref={videoRef}
               src={move.media_url ?? undefined}
-              poster={thumb ?? undefined}
               muted={muted}
               loop
               playsInline
               preload="metadata"
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 group-hover:scale-[1.03] ${playing ? 'opacity-100' : 'opacity-0'}`}
             />
-          ) : thumb ? (
-            <img src={thumb} alt={move.name} loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
-          ) : (
-            <div className="grid h-full w-full place-items-center text-4xl text-text-dim">{move.kind === 'combo' ? '🎬' : '💃'}</div>
           )}
         </Link>
 
