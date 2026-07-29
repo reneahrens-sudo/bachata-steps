@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -7,7 +7,10 @@ import { extractYouTubeId } from '../lib/youtube'
 import { CATEGORIES, LEVELS, STYLES } from '../lib/constants'
 import { ComboBuilder } from '../components/combos/ComboBuilder'
 import { MoveClipEditor } from '../components/moves/MoveClipEditor'
+import { VideoSegmenter, type SegmenterHandle } from '../components/moves/VideoSegmenter'
 import { deleteMovesDeep } from '../lib/moveCleanup'
+import { uploadClassVideoSmart, usedStorageBytes, STORAGE_QUOTA_BYTES, captureFrame, uploadThumb } from '../lib/storage'
+import { attachPreview } from '../lib/previewPipeline'
 import type { Move, SourceLink, Visibility } from '../lib/types'
 
 export function MoveForm() {
@@ -38,6 +41,7 @@ export function MoveForm() {
   const [variationName, setVariationName] = useState<string | null>(null)
   const [relQuery, setRelQuery] = useState('')
   const [relHits, setRelHits] = useState<{ id: string; name: string }[]>([])
+  const segRef = useRef<SegmenterHandle>(null)
 
   // resolve the base move's name for display
   useEffect(() => {
@@ -197,6 +201,19 @@ export function MoveForm() {
         moveId = data.id
       }
 
+      // New single move with an uploaded + trimmed video → set it as the move's primary + preview clip.
+      const vid = !editing && kind === 'move' ? segRef.current?.getData() : null
+      if (vid && moveId) {
+        const used = await usedStorageBytes(user.id)
+        if (used + vid.file.size > STORAGE_QUOTA_BYTES) throw new Error('Speicher voll — bitte zuerst Videos unter „Meine Videos" löschen.')
+        const seg = vid.segs[0]
+        const { videoId, url } = await uploadClassVideoSmart(vid.file, user.id, { title: name.trim(), visibility, durationS: vid.duration })
+        let thumbUrl: string | null = null
+        try { thumbUrl = await uploadThumb(await captureFrame(vid.videoEl, seg.start), user.id) } catch { /* optional */ }
+        await supabase.from('moves').update({ media_url: url, thumb_url: thumbUrl, clip_start: seg.start, clip_end: seg.end, video_id: videoId }).eq('id', moveId)
+        try { await attachPreview({ moveId, source: vid.file, start: seg.start, end: seg.end, userId: user.id }) } catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
+      }
+
       // sync combo steps
       if (kind === 'combo' && moveId) {
         await supabase.from('combo_items').delete().eq('combo_id', moveId)
@@ -327,6 +344,14 @@ export function MoveForm() {
       <input placeholder="YouTube-Link (optional)" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} className={input} />
       <input placeholder="Tutorial-/Quellen-Link (optional)" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} className={input} />
       <input placeholder="Tags (Komma-getrennt)" value={tags} onChange={(e) => setTags(e.target.value)} className={input} />
+
+      {!editing && kind === 'move' && (
+        <div className="space-y-2 rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-semibold">Video hochladen &amp; zuschneiden (optional)</h2>
+          <p className="text-xs text-text-dim">Lade eine Videodatei hoch und setze den Ausschnitt — er wird zum Vorschau-Clip des Moves. Alternativ oben einen YouTube-Link angeben.</p>
+          <VideoSegmenter ref={segRef} mode="single" />
+        </div>
+      )}
 
       {kind === 'combo' && (
         <div className="rounded-2xl border border-border bg-card p-4">

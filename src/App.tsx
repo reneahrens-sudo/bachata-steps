@@ -14,6 +14,7 @@ import { LessonNew } from './pages/LessonNew'
 import { LessonDetail } from './pages/LessonDetail'
 import { LessonEdit } from './pages/LessonEdit'
 import { NewChooser } from './pages/NewChooser'
+import { ComboNew } from './pages/ComboNew'
 import { MyVideos } from './pages/MyVideos'
 import { Profile } from './pages/Profile'
 import { PublicProfile } from './pages/PublicProfile'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/neu" element={<NewChooser />} />
         <Route path="/katalog" element={<Catalog />} />
         <Route path="/move/neu" element={<MoveForm />} />
+        <Route path="/combo/neu-video" element={<ComboNew />} />
         <Route path="/move/:id" element={<MoveDetail />} />
         <Route path="/move/:id/bearbeiten" element={<MoveForm />} />
         <Route path="/sammlungen" element={<Collections />} />
