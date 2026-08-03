@@ -56,8 +56,8 @@ export function Login() {
 
       <div className="mt-8 rounded-2xl border border-border bg-card/50 p-4 text-center">
         <p className="text-sm leading-relaxed text-text-dim">
-          BachataMoves is a private learning space — not open to the public. It exists to protect the hard work
-          and creativity of the teachers who share their moves here, and as a small tribute to every instructor
+          BachataMoves is a private learning space — not open to the public. This is to protect the hard work
+          and creativity of the teachers who share their moves with us, and as a small tribute to every instructor
           teaching offline, floor to floor, night after night.
         </p>
         <p className="mt-3 text-sm font-medium text-accent">Thank you for keeping this dance alive. 💃🕺</p>
