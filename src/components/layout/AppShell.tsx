@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useIsAdmin } from '../../hooks/useMembers'
 import { BottomNav } from './BottomNav'
 
 const desktopLinks = [
@@ -15,6 +16,7 @@ const desktopLinks = [
 
 export function AppShell() {
   const { isRealUser, signOut } = useAuth()
+  const { data: isAdmin } = useIsAdmin()
 
   return (
     <div className="min-h-svh">
@@ -46,6 +48,28 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {isAdmin && (
+              <NavLink
+                to="/mitglieder"
+                className={({ isActive }) =>
+                  `hidden rounded-lg px-3 py-1.5 text-sm font-medium transition md:inline-block ${
+                    isActive ? 'bg-card text-accent' : 'text-text-dim hover:text-text'
+                  }`
+                }
+              >
+                👥 Mitglieder
+              </NavLink>
+            )}
+            <NavLink
+              to="/profil"
+              className={({ isActive }) =>
+                `hidden rounded-lg px-3 py-1.5 text-sm font-medium transition md:inline-block ${
+                  isActive ? 'bg-card text-accent' : 'text-text-dim hover:text-text'
+                }`
+              }
+            >
+              Profil
+            </NavLink>
             <Link
               to="/neu"
               className="hidden rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white transition hover:brightness-110 md:inline-block"
