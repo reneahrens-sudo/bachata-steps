@@ -20,6 +20,7 @@ import { Profile } from './pages/Profile'
 import { PublicProfile } from './pages/PublicProfile'
 import { Stats } from './pages/Stats'
 import { Settings } from './pages/Settings'
+import { Members } from './pages/Members'
 import { Login } from './pages/Login'
 import { useAuth } from './hooks/useAuth'
 
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="/profil" element={<Profile />} />
         <Route path="/profil/:username" element={<PublicProfile />} />
         <Route path="/einstellungen" element={<Settings />} />
+        <Route path="/mitglieder" element={<Members />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

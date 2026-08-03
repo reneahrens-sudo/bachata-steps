@@ -16,7 +16,7 @@ export function Settings() {
       <div className="rounded-2xl border border-border bg-card p-4 text-sm text-text-dim">
         <h2 className="font-semibold text-text">Über</h2>
         <p className="mt-1">
-          BachataSteps — moderne PWA zum Verwalten deiner Bachata-Moves &amp; Combos. Installierbar über das
+          BachataMoves — moderne PWA zum Verwalten deiner Bachata-Moves &amp; Combos. Installierbar über das
           Browser-Menü („Zum Startbildschirm hinzufügen").
         </p>
       </div>

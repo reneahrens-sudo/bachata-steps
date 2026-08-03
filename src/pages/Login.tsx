@@ -22,9 +22,9 @@ export function Login() {
       <div className="mb-6 text-center">
         <div className="text-5xl">💃</div>
         <h1 className="mt-3 text-2xl font-bold">
-          Bachata<span className="text-accent">Steps</span>
+          Bachata<span className="text-accent">Moves</span>
         </h1>
-        <p className="mt-1 text-sm text-text-dim">Privater Bereich · Zugang nur auf Einladung</p>
+        <p className="mt-1 text-sm text-text-dim">Private learning space · Invite only</p>
       </div>
 
       <form onSubmit={submit} className="space-y-3">
@@ -54,7 +54,14 @@ export function Login() {
 
       {msg && <p className="mt-3 text-center text-sm text-red-400">{msg}</p>}
 
-      <p className="mt-6 text-center text-xs text-text-dim">Kein Zugang? Bitte den Betreiber um eine Einladung.</p>
+      <div className="mt-8 rounded-2xl border border-border bg-card/50 p-4 text-center">
+        <p className="text-sm leading-relaxed text-text-dim">
+          BachataMoves is a private learning space — not open to the public. It exists to protect the hard work
+          and creativity of the teachers who share their moves here, and as a small tribute to every instructor
+          teaching offline, floor to floor, night after night.
+        </p>
+        <p className="mt-3 text-sm font-medium text-accent">Thank you for keeping this dance alive. 💃🕺</p>
+      </div>
     </div>
   )
 }

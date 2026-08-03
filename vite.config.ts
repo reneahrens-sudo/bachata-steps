@@ -16,8 +16,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Bachata Steps',
-        short_name: 'Steps',
+        name: 'BachataMoves',
+        short_name: 'BachataMoves',
         description: 'Bachata Moves & Combos verwalten, üben und teilen',
         lang: 'de',
         display: 'standalone',

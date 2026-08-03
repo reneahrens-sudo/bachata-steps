@@ -61,7 +61,7 @@ export function Home() {
       <div className="mx-auto max-w-lg py-10 text-center">
         <div className="text-6xl">💃🕺</div>
         <h1 className="mt-4 text-3xl font-bold">
-          Bachata<span className="text-accent">Steps</span>
+          Bachata<span className="text-accent">Moves</span>
         </h1>
         <p className="mt-3 text-text-dim">
           Sammle deine gelernten Moves &amp; Combos, markiere was du üben willst, baue eigene Kombinationen und teile sie.

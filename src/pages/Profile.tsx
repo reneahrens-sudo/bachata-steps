@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { useIsAdmin } from '../hooks/useMembers'
 import { useMyMoveData } from '../hooks/useMyMoveData'
 import type { Profile as ProfileRow } from '../lib/types'
 
 export function Profile() {
   const { user, signOut } = useAuth()
+  const { data: isAdmin } = useIsAdmin()
   const { data: myData } = useMyMoveData()
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -99,6 +101,11 @@ export function Profile() {
         <Link to="/entdecken" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover md:hidden">
           🌍 Entdecken
         </Link>
+        {isAdmin && (
+          <Link to="/mitglieder" className="block rounded-xl border border-accent/40 bg-accent-soft px-4 py-3 font-medium text-accent transition hover:bg-accent-soft/70">
+            👥 Mitglieder verwalten
+          </Link>
+        )}
         <Link to="/statistik" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
           📊 Meine Statistik
         </Link>

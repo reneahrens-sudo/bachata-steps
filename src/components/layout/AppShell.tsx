@@ -24,7 +24,7 @@ export function AppShell() {
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <span className="text-xl">💃</span>
             <span>
-              Bachata<span className="text-accent">Steps</span>
+              Bachata<span className="text-accent">Moves</span>
             </span>
           </Link>
 
