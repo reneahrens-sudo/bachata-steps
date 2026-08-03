@@ -21,8 +21,15 @@ import { PublicProfile } from './pages/PublicProfile'
 import { Stats } from './pages/Stats'
 import { Settings } from './pages/Settings'
 import { Login } from './pages/Login'
+import { useAuth } from './hooks/useAuth'
 
 export default function App() {
+  const { isRealUser, loading } = useAuth()
+
+  // Invite-only: until a real account is signed in, the whole app is a login wall.
+  if (loading) return <div className="grid min-h-svh place-items-center text-text-dim">Lädt…</div>
+  if (!isRealUser) return <Login />
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

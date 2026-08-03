@@ -28,20 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) {
-        if (!cancelled) {
-          setSession(data.session)
-          setLoading(false)
-        }
-        return
-      }
-      // No session → try a silent anonymous session so uploads work without a login screen.
-      // If anonymous sign-ins are disabled in Supabase, this fails gracefully and the app
-      // stays logged-out (public content is still viewable).
-      const { data: anon } = await supabase.auth.signInAnonymously()
+    // Invite-only: no anonymous auto sign-in. Without a real session the app shows the login wall.
+    supabase.auth.getSession().then(({ data }) => {
       if (!cancelled) {
-        setSession(anon?.session ?? null)
+        setSession(data.session)
         setLoading(false)
       }
     })
