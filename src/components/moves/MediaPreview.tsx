@@ -125,6 +125,7 @@ export function MediaSourcePlayer({
           autoStart={source.clip_start}
           autoEnd={source.clip_end}
           autoLoop={source.clip_start != null && source.clip_end != null}
+          chromeless={source.clip_start != null && source.clip_end != null}
         />
       </div>
     )

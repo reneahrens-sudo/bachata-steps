@@ -57,10 +57,12 @@ export const YouTubePlayer = forwardRef<
     autoStart?: number | null
     autoEnd?: number | null
     autoLoop?: boolean
+    /** Hide YouTube controls/branding as much as possible (for clean looping previews). */
+    chromeless?: boolean
     onReady?: (duration: number) => void
     onTime?: (t: number) => void
   }
->(({ videoId, autoStart, autoEnd, autoLoop, onReady, onTime }, ref) => {
+>(({ videoId, autoStart, autoEnd, autoLoop, chromeless, onReady, onTime }, ref) => {
   const hostRef = useRef<HTMLDivElement>(null)
   const player = useRef<YTPlayer | null>(null)
   const loopStart = useRef(0)
@@ -89,7 +91,9 @@ export const YouTubePlayer = forwardRef<
       if (cancelled || !hostRef.current) return
       player.current = new window.YT!.Player(hostRef.current, {
         videoId,
-        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, controls: 1 },
+        playerVars: chromeless
+          ? { rel: 0, playsinline: 1, modestbranding: 1, controls: 0, iv_load_policy: 3, fs: 0, disablekb: 1 }
+          : { rel: 0, playsinline: 1, modestbranding: 1, controls: 1 },
         events: {
           onReady: () => {
             const p = player.current
