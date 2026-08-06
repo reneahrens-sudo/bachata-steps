@@ -111,7 +111,7 @@ export function MoveClipEditor({ moveId }: { moveId: string }) {
       v.addEventListener('timeupdate', stop)
     } else if (isYT) {
       ytRef.current?.setRate(speed)
-      ytRef.current?.playRange(start, end)
+      ytRef.current?.playRange(start, end, 'once')
     }
   }
   const applyRate = (sp: number) => {

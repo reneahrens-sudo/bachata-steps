@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MediaSource, Move } from '../../lib/types'
-import { youTubeThumb, youTubeEmbed } from '../../lib/youtube'
+import { youTubeThumb } from '../../lib/youtube'
+import { YouTubePlayer } from './YouTubePlayer'
 
 function isVideoUrl(u: string | null | undefined): boolean {
   return !!u && /\.(mp4|webm|mov)(\?|$)/i.test(u)
@@ -116,14 +117,14 @@ export function MediaSourcePlayer({
         </button>
       )
     }
+    // If a clip range is set, loop exactly that range; otherwise play the whole video.
     return (
-      <div className={`overflow-hidden rounded-2xl bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
-        <iframe
-          src={youTubeEmbed(source.youtube_id, { start: source.clip_start, end: source.clip_end })}
-          title={name}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className="h-full w-full border-0"
+      <div className={className}>
+        <YouTubePlayer
+          videoId={source.youtube_id}
+          autoStart={source.clip_start}
+          autoEnd={source.clip_end}
+          autoLoop={source.clip_start != null && source.clip_end != null}
         />
       </div>
     )

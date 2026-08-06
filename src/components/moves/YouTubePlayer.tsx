@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 /* Minimal typing for the YouTube IFrame API we use. */
 declare global {
   interface Window {
-    YT?: { Player: new (el: HTMLElement, opts: unknown) => YTPlayer }
+    YT?: { Player: new (el: HTMLElement, opts: unknown) => YTPlayer; PlayerState?: { ENDED: number } }
     onYouTubeIframeAPIReady?: () => void
   }
 }
@@ -17,9 +17,11 @@ type YTPlayer = {
   destroy: () => void
 }
 
+export type PlayMode = 'once' | 'loop'
 export type YTHandle = {
   seekTo: (t: number) => void
-  playRange: (start: number, end: number) => void
+  /** Play [start,end]; mode 'once' pauses at the end, 'loop' repeats the clip. */
+  playRange: (start: number, end: number, mode?: PlayMode) => void
   pause: () => void
   setRate: (r: number) => void
   getTime: () => number
@@ -42,16 +44,43 @@ function loadApi(): Promise<void> {
   return apiPromise
 }
 
-/** YouTube player with an imperative handle (seek/playRange/rate) so it can drive the trim editor. */
+/**
+ * YouTube player with an imperative handle (seek/playRange/rate) for the trim editor, plus an
+ * optional standalone auto-loop of [autoStart, autoEnd] for previews. Playback is kept tightly
+ * inside the clip: a fast poll seeks back (loop) or pauses (once) at the end, and onStateChange
+ * catches a real end so the full video / end screen never takes over.
+ */
 export const YouTubePlayer = forwardRef<
   YTHandle,
-  { videoId: string; onReady?: (duration: number) => void; onTime?: (t: number) => void }
->(({ videoId, onReady, onTime }, ref) => {
+  {
+    videoId: string
+    autoStart?: number | null
+    autoEnd?: number | null
+    autoLoop?: boolean
+    onReady?: (duration: number) => void
+    onTime?: (t: number) => void
+  }
+>(({ videoId, autoStart, autoEnd, autoLoop, onReady, onTime }, ref) => {
   const hostRef = useRef<HTMLDivElement>(null)
   const player = useRef<YTPlayer | null>(null)
   const loopStart = useRef(0)
   const loopEnd = useRef<number | null>(null)
+  const mode = useRef<PlayMode>('loop')
   const reported = useRef(false)
+
+  const enforceBound = (t: number) => {
+    const p = player.current
+    if (!p || loopEnd.current == null) return
+    if (t >= loopEnd.current - 0.1) {
+      if (mode.current === 'loop') {
+        p.seekTo(loopStart.current, true)
+      } else {
+        loopEnd.current = null
+        p.pauseVideo()
+        p.seekTo(loopStart.current, true) // reset to clip start so a manual replay starts right
+      }
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -60,7 +89,30 @@ export const YouTubePlayer = forwardRef<
       if (cancelled || !hostRef.current) return
       player.current = new window.YT!.Player(hostRef.current, {
         videoId,
-        playerVars: { rel: 0, playsinline: 1, modestbranding: 1 },
+        playerVars: { rel: 0, playsinline: 1, modestbranding: 1, controls: 1 },
+        events: {
+          onReady: () => {
+            const p = player.current
+            if (!p) return
+            if (!reported.current && p.getDuration() > 0) { reported.current = true; onReady?.(p.getDuration()) }
+            if (autoStart != null && autoEnd != null) {
+              loopStart.current = autoStart
+              loopEnd.current = autoEnd
+              mode.current = autoLoop ? 'loop' : 'once'
+              p.seekTo(autoStart, true)
+              p.playVideo()
+            }
+          },
+          onStateChange: (e: { data: number }) => {
+            // ENDED (0): if we're bounding a clip, loop or pause instead of showing the end screen.
+            if (e.data === 0 && loopEnd.current != null) {
+              const p = player.current
+              if (!p) return
+              if (mode.current === 'loop') { p.seekTo(loopStart.current, true); p.playVideo() }
+              else p.pauseVideo()
+            }
+          },
+        },
       }) as unknown as YTPlayer
     })
     const timer = setInterval(() => {
@@ -68,29 +120,24 @@ export const YouTubePlayer = forwardRef<
       if (!p?.getCurrentTime) return
       const t = p.getCurrentTime()
       onTime?.(t)
-      if (!reported.current && p.getDuration() > 0) {
-        reported.current = true
-        onReady?.(p.getDuration())
-      }
-      if (loopEnd.current != null && t >= loopEnd.current - 0.15) p.seekTo(loopStart.current, true)
-    }, 200)
+      if (!reported.current && p.getDuration() > 0) { reported.current = true; onReady?.(p.getDuration()) }
+      enforceBound(t)
+    }, 100)
     return () => {
       cancelled = true
       clearInterval(timer)
-      try {
-        player.current?.destroy()
-      } catch {
-        /* ignore */
-      }
+      try { player.current?.destroy() } catch { /* ignore */ }
       player.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId])
 
   useImperativeHandle(ref, () => ({
     seekTo: (t) => player.current?.seekTo(t, true),
-    playRange: (s, e) => {
+    playRange: (s, e, m = 'once') => {
       loopStart.current = s
       loopEnd.current = e
+      mode.current = m
       player.current?.seekTo(s, true)
       player.current?.playVideo()
     },
