@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { Countdown } from '../components/Countdown'
 import { MediaGallery, MediaPlayer, moveToSource } from '../components/moves/MediaPreview'
-import { categoryLabel } from '../lib/constants'
+import { categoryLabel, STATUS_META, STATUS_ORDER } from '../lib/constants'
 import type { Move, MoveMedia, Lesson, Collection, MediaSource } from '../lib/types'
 
 type ShareData =
@@ -16,7 +16,7 @@ type ShareData =
 
 /** Public viewer for a share link: single content read-only, or guest entry to the whole platform. */
 export function SharePage() {
-  const { token } = useParams()
+  const { token, moveId } = useParams()
   const navigate = useNavigate()
   const { isRealUser } = useAuth()
   const [entering, setEntering] = useState(false)
@@ -24,11 +24,11 @@ export function SharePage() {
   const [expiredNow, setExpiredNow] = useState(false) // flips when the countdown hits zero while viewing
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['share', token],
+    queryKey: ['share', token, moveId ?? null],
     enabled: !!token,
     retry: false,
     queryFn: async (): Promise<ShareData> => {
-      const { data, error } = await supabase.functions.invoke('share', { body: { token } })
+      const { data, error } = await supabase.functions.invoke('share', { body: { token, moveId } })
       if (error) {
         // Non-2xx: read the function's JSON body to distinguish "expired" from "not found".
         const ctx = (error as { context?: Response }).context
@@ -138,6 +138,11 @@ export function SharePage() {
     ]
     return shell(
       <div className="space-y-5">
+        {moveId && (
+          <button onClick={() => navigate(-1)} className="text-sm text-text-dim hover:text-text">
+            ← Zurück
+          </button>
+        )}
         <MediaGallery sources={sources} name={data.move.name} />
         <div>
           <h1 className="text-2xl font-bold">{data.move.name}</h1>
@@ -146,7 +151,10 @@ export function SharePage() {
           </p>
           {data.move.description && <p className="mt-2 whitespace-pre-wrap text-sm text-text-dim">{data.move.description}</p>}
         </div>
-        {data.steps.length > 0 && <MoveList title={`Ablauf (${data.steps.length} Moves)`} moves={data.steps} />}
+        <DisabledFeatures />
+        {data.steps.length > 0 && (
+          <MoveList title={`Ablauf (${data.steps.length} Moves)`} moves={data.steps} linkBase={!moveId ? `/s/${token}` : undefined} />
+        )}
       </div>,
     )
   }
@@ -171,7 +179,7 @@ export function SharePage() {
             <MediaPlayer move={data.combo} />
           </div>
         )}
-        <MoveList title={`Moves dieser Class (${data.moves.length})`} moves={data.moves} />
+        <MoveList title={`Moves dieser Class (${data.moves.length})`} moves={data.moves} linkBase={`/s/${token}`} />
       </div>,
     )
   }
@@ -183,26 +191,67 @@ export function SharePage() {
         <h1 className="mt-1 text-2xl font-bold">{data.collection.name}</h1>
         {data.collection.description && <p className="mt-1 text-sm text-text-dim">{data.collection.description}</p>}
       </div>
-      <MoveList title={`${data.moves.length} Moves`} moves={data.moves} />
+      <MoveList title={`${data.moves.length} Moves`} moves={data.moves} linkBase={`/s/${token}`} />
     </div>,
   )
 }
 
-function MoveList({ title, moves }: { title: string; moves: Move[] }) {
+/** Move cards; with linkBase each card header links to the move's read-only sub-page. */
+function MoveList({ title, moves, linkBase }: { title: string; moves: Move[]; linkBase?: string }) {
   if (!moves.length) return null
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold text-text-dim">{title}</h2>
-      {moves.map((m, i) => (
-        <div key={m.id ?? i} className="rounded-2xl border border-border bg-card p-3">
-          <div className="mb-2 flex items-center gap-2">
+      {moves.map((m, i) => {
+        const header = (
+          <>
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">{i + 1}</span>
             <h3 className="font-semibold">{m.name}</h3>
-            <span className="ml-auto text-xs text-text-dim">{categoryLabel(m.category)}</span>
+            <span className="ml-auto shrink-0 text-xs text-text-dim">
+              {categoryLabel(m.category)}
+              {linkBase && <span className="ml-2 font-medium text-accent">Details ›</span>}
+            </span>
+          </>
+        )
+        return (
+          <div key={m.id ?? i} className="rounded-2xl border border-border bg-card p-3">
+            {linkBase ? (
+              <Link to={`${linkBase}/m/${m.id}`} className="mb-2 flex items-center gap-2 rounded-lg transition hover:bg-card-hover">
+                {header}
+              </Link>
+            ) : (
+              <div className="mb-2 flex items-center gap-2">{header}</div>
+            )}
+            <MediaPlayer move={m} />
           </div>
-          <MediaPlayer move={m} />
-        </div>
-      ))}
+        )
+      })}
     </section>
+  )
+}
+
+/** The app's per-move actions, visible but disabled — so visitors see what the platform offers. */
+function DisabledFeatures() {
+  const chip = 'inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-text-dim opacity-50'
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-text-dim">Mein Status</h2>
+        <span className="text-[11px] text-text-dim">🔒 verfügbar mit Plattform-Zugang</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5" aria-disabled>
+        {STATUS_ORDER.map((f) => (
+          <button key={f} disabled className={chip} title="Nur mit Plattform-Zugang">
+            <span>{STATUS_META[f].icon}</span>
+            <span>{STATUS_META[f].short}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button disabled className={chip + ' flex-1 justify-center'} title="Nur mit Plattform-Zugang">📚 Zu Sammlung</button>
+        <button disabled className={chip + ' flex-1 justify-center'} title="Nur mit Plattform-Zugang">📝 Notizen</button>
+        <button disabled className={chip + ' flex-1 justify-center'} title="Nur mit Plattform-Zugang">🔗 Teilen</button>
+      </div>
+    </div>
   )
 }

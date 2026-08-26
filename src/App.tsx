@@ -37,6 +37,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/s/:token" element={<SharePage />} />
+        <Route path="/s/:token/m/:moveId" element={<SharePage />} />
       </Routes>
     )
   }
