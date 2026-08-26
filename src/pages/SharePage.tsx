@@ -3,14 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { Countdown } from '../components/Countdown'
 import { MediaGallery, MediaPlayer, moveToSource } from '../components/moves/MediaPreview'
 import { categoryLabel } from '../lib/constants'
 import type { Move, MoveMedia, Lesson, Collection, MediaSource } from '../lib/types'
 
 type ShareData =
-  | { type: 'move'; move: Move; media: MoveMedia[]; steps: Move[] }
-  | { type: 'lesson'; lesson: Lesson; combo: Move | null; moves: Move[] }
-  | { type: 'collection'; collection: Collection; moves: Move[] }
+  | { type: 'move'; move: Move; media: MoveMedia[]; steps: Move[]; expires_at: string | null }
+  | { type: 'lesson'; lesson: Lesson; combo: Move | null; moves: Move[]; expires_at: string | null }
+  | { type: 'collection'; collection: Collection; moves: Move[]; expires_at: string | null }
   | { type: 'guest'; email: string; expires_at: string | null }
 
 /** Public viewer for a share link: single content read-only, or guest entry to the whole platform. */
@@ -20,6 +21,7 @@ export function SharePage() {
   const { isRealUser } = useAuth()
   const [entering, setEntering] = useState(false)
   const [enterErr, setEnterErr] = useState<string | null>(null)
+  const [expiredNow, setExpiredNow] = useState(false) // flips when the countdown hits zero while viewing
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['share', token],
@@ -42,26 +44,43 @@ export function SharePage() {
     },
   })
 
+  const linkExpiry = data && data.type !== 'guest' ? data.expires_at : null
+
   const shell = (content: React.ReactNode) => (
     <div className="min-h-svh bg-bg">
       <header className="border-b border-border bg-bg/90">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4 font-bold tracking-tight">
           <span className="text-xl">💃</span>
           <span>Bachata<span className="text-accent">Moves</span></span>
-          <span className="ml-auto text-xs font-normal text-text-dim">Geteilter Inhalt</span>
+          {linkExpiry && !expiredNow ? (
+            <span className="ml-auto rounded-full border border-accent/50 bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent" title="So lange ist dieser Link noch gültig">
+              ⏳ noch <Countdown until={linkExpiry} onExpired={() => setExpiredNow(true)} />
+            </span>
+          ) : (
+            <span className="ml-auto text-xs font-normal text-text-dim">Geteilter Inhalt</span>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-6">{content}</main>
     </div>
   )
 
+  const expiredView = shell(
+    <div className="py-20 text-center text-text-dim">
+      <div className="text-5xl">⏳</div>
+      <p className="mt-3 font-medium text-text">Dieser Link ist abgelaufen.</p>
+      <p className="mt-1 text-sm">Bitte die Person fragen, die ihn geteilt hat — sie kann ihn verlängern oder neu erstellen.</p>
+    </div>,
+  )
+
   if (isLoading) return shell(<p className="py-20 text-center text-text-dim">Lädt…</p>)
+  if (expiredNow) return expiredView
   if (error || !data) {
-    const expired = (error as Error | null)?.message === 'expired'
+    if ((error as Error | null)?.message === 'expired') return expiredView
     return shell(
       <div className="py-20 text-center text-text-dim">
-        <div className="text-5xl">{expired ? '⏳' : '🔒'}</div>
-        <p className="mt-3 font-medium text-text">{expired ? 'Dieser Link ist abgelaufen.' : 'Dieser Link existiert nicht (mehr).'}</p>
+        <div className="text-5xl">🔒</div>
+        <p className="mt-3 font-medium text-text">Dieser Link existiert nicht (mehr).</p>
         <p className="mt-1 text-sm">Bitte die Person fragen, die ihn geteilt hat.</p>
       </div>,
     )
@@ -90,6 +109,11 @@ export function SharePage() {
             ? ` — gültig bis ${new Date(data.expires_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`
             : '.'}
         </p>
+        {data.expires_at && (
+          <p className="mt-2 inline-block rounded-full border border-accent/50 bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+            ⏳ noch <Countdown until={data.expires_at} onExpired={() => setExpiredNow(true)} />
+          </p>
+        )}
         {isRealUser ? (
           <button onClick={() => navigate('/', { replace: true })} className="mt-5 w-full rounded-xl bg-accent py-3 font-semibold text-white">
             Du bist bereits angemeldet — zur Plattform →

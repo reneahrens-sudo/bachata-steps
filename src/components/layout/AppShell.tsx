@@ -1,6 +1,9 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import { useIsAdmin } from '../../hooks/useMembers'
+import { useAccess } from '../../hooks/useAccess'
+import { Countdown } from '../Countdown'
 import { BottomNav } from './BottomNav'
 
 const desktopLinks = [
@@ -17,6 +20,8 @@ const desktopLinks = [
 export function AppShell() {
   const { isRealUser, signOut } = useAuth()
   const { data: isAdmin } = useIsAdmin()
+  const { data: access } = useAccess()
+  const qc = useQueryClient()
 
   return (
     <div className="min-h-svh">
@@ -48,6 +53,14 @@ export function AppShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {access?.isGuest && access.guestExpiresAt && (
+              <span
+                className="rounded-full border border-accent/50 bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent"
+                title="Verbleibende Zeit deines Gast-Zugangs"
+              >
+                🎟️ <Countdown until={access.guestExpiresAt} onExpired={() => qc.invalidateQueries({ queryKey: ['access'] })} />
+              </span>
+            )}
             {isAdmin && (
               <NavLink
                 to="/mitglieder"

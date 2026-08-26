@@ -23,10 +23,13 @@ import { Stats } from './pages/Stats'
 import { Settings } from './pages/Settings'
 import { Members } from './pages/Members'
 import { Login } from './pages/Login'
+import { AccessEnded } from './pages/AccessEnded'
 import { useAuth } from './hooks/useAuth'
+import { useAccess } from './hooks/useAccess'
 
 export default function App() {
   const { isRealUser, loading } = useAuth()
+  const { data: access } = useAccess()
   const location = useLocation()
 
   // Share links are the one public surface — they bypass the login wall (token-gated, read-only).
@@ -41,6 +44,8 @@ export default function App() {
   // Invite-only: until a real account is signed in, the whole app is a login wall.
   if (loading) return <div className="grid min-h-svh place-items-center text-text-dim">Lädt…</div>
   if (!isRealUser) return <Login />
+  // Signed in but no (longer a) member — e.g. an expired guest link → clear info page instead of an empty app.
+  if (access && !access.isMember) return <AccessEnded isGuest={access.isGuest} />
 
   return (
     <Routes>
