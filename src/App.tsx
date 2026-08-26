@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { Home } from './pages/Home'
 import { Catalog } from './pages/Catalog'
@@ -6,7 +6,8 @@ import { MoveDetail } from './pages/MoveDetail'
 import { MoveForm } from './pages/MoveForm'
 import { Collections } from './pages/Collections'
 import { CollectionDetail } from './pages/CollectionDetail'
-import { SharedCollection } from './pages/SharedCollection'
+import { SharePage } from './pages/SharePage'
+import { ShareLinks } from './pages/ShareLinks'
 import { Discover } from './pages/Discover'
 import { Import } from './pages/Import'
 import { Lessons } from './pages/Lessons'
@@ -26,6 +27,16 @@ import { useAuth } from './hooks/useAuth'
 
 export default function App() {
   const { isRealUser, loading } = useAuth()
+  const location = useLocation()
+
+  // Share links are the one public surface — they bypass the login wall (token-gated, read-only).
+  if (location.pathname.startsWith('/s/')) {
+    return (
+      <Routes>
+        <Route path="/s/:token" element={<SharePage />} />
+      </Routes>
+    )
+  }
 
   // Invite-only: until a real account is signed in, the whole app is a login wall.
   if (loading) return <div className="grid min-h-svh place-items-center text-text-dim">Lädt…</div>
@@ -33,8 +44,6 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/s/:slug" element={<SharedCollection />} />
       <Route element={<AppShell />}>
         <Route path="/" element={<Home />} />
         <Route path="/neu" element={<NewChooser />} />
@@ -57,6 +66,7 @@ export default function App() {
         <Route path="/profil/:username" element={<PublicProfile />} />
         <Route path="/einstellungen" element={<Settings />} />
         <Route path="/mitglieder" element={<Members />} />
+        <Route path="/links" element={<ShareLinks />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

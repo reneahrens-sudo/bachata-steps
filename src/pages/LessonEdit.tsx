@@ -92,6 +92,7 @@ export function LessonEdit() {
         }
       }
       await deleteMovesDeep((own ?? []).map((m) => m.id))
+      await supabase.from('share_links').delete().eq('target_id', id!)
       await supabase.from('lessons').delete().eq('id', id!)
       for (const key of [['lessons'], ['lesson', id], ['moves'], ['discover'], ['collections']]) qc.invalidateQueries({ queryKey: key })
       navigate('/lessons')

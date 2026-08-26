@@ -106,6 +106,9 @@ export function Profile() {
             👥 Mitglieder verwalten
           </Link>
         )}
+        <Link to="/links" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
+          🔗 Meine geteilten Links
+        </Link>
         <Link to="/statistik" className="block rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-card-hover">
           📊 Meine Statistik
         </Link>

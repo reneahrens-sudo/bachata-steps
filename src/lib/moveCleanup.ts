@@ -21,6 +21,8 @@ export async function deleteMovesDeep(moveIds: string[]): Promise<void> {
   await supabase.from('move_user_data').delete().in('move_id', ids)
   // Detach variation links pointing at the moves we're about to remove.
   await supabase.from('moves').update({ variation_of: null }).in('variation_of', ids)
+  // Revoke share links pointing at the deleted moves.
+  await supabase.from('share_links').delete().in('target_id', ids)
   const { error } = await supabase.from('moves').delete().in('id', ids)
   if (error) throw error
 }

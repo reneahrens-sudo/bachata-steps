@@ -291,6 +291,39 @@ export type Database = {
         }
         Relationships: []
       }
+      share_links: {
+        Row: {
+          id: string
+          token: string
+          owner_id: string
+          target_type: string
+          target_id: string
+          label: string | null
+          expires_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          token: string
+          owner_id: string
+          target_type: string
+          target_id: string
+          label?: string | null
+          expires_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          token?: string
+          owner_id?: string
+          target_type?: string
+          target_id?: string
+          label?: string | null
+          expires_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       videos: {
         Row: {
           created_at: string | null
@@ -344,6 +377,7 @@ export type CollectionItem = Database['public']['Tables']['collection_items']['R
 export type ComboItem = Database['public']['Tables']['combo_items']['Row']
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type VideoRow = Database['public']['Tables']['videos']['Row']
+export type ShareLink = Database['public']['Tables']['share_links']['Row']
 export type Lesson = Database['public']['Tables']['lessons']['Row']
 export type LessonInsert = Database['public']['Tables']['lessons']['Insert']
 export type MoveMedia = Database['public']['Tables']['move_media']['Row']

@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useMyMoveData } from '../hooks/useMyMoveData'
 import { useAuth } from '../hooks/useAuth'
-import { useShareCollection, useUpdateCollection, useRemoveFromCollection, useReorderCollection } from '../hooks/useCollections'
+import { useUpdateCollection, useRemoveFromCollection, useReorderCollection } from '../hooks/useCollections'
 import { MoveGrid } from '../components/moves/MoveGrid'
+import { ShareDialog } from '../components/ShareDialog'
 import type { Collection, Move } from '../lib/types'
 
 export function CollectionDetail() {
@@ -14,11 +15,10 @@ export function CollectionDetail() {
   const qc = useQueryClient()
   const { user } = useAuth()
   const { data: myData } = useMyMoveData()
-  const [copied, setCopied] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [manage, setManage] = useState(false)
   const [editingName, setEditingName] = useState<string | null>(null)
 
-  const share = useShareCollection()
   const update = useUpdateCollection()
   const removeItem = useRemoveFromCollection()
   const reorder = useReorderCollection()
@@ -43,6 +43,7 @@ export function CollectionDetail() {
   const del = useMutation({
     mutationFn: async () => {
       await supabase.from('collection_items').delete().eq('collection_id', id!)
+      await supabase.from('share_links').delete().eq('target_id', id!)
       const { error } = await supabase.from('collections').delete().eq('id', id!)
       if (error) throw error
     },
@@ -58,23 +59,6 @@ export function CollectionDetail() {
 
   const col = data.collection
   const isOwner = user && col.owner_id === user.id
-
-  const doShare = async () => {
-    let slug = col.share_slug
-    if (!slug && isOwner) slug = await share.mutateAsync({ collectionId: col.id, currentSlug: col.share_slug })
-    if (!slug) return
-    const url = `${window.location.origin}/s/${slug}`
-    try {
-      if (navigator.share) await navigator.share({ title: col.name, url })
-      else {
-        await navigator.clipboard.writeText(url)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }
-    } catch {
-      /* user cancelled */
-    }
-  }
 
   const move = (idx: number, dir: -1 | 1) => {
     const ids = data.moves.map((m) => m.id)
@@ -120,8 +104,8 @@ export function CollectionDetail() {
           <p className="text-sm text-text-dim">{data.moves.length} Moves</p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <button onClick={doShare} disabled={share.isPending} className="rounded-xl border border-border bg-card px-3 py-2 text-sm disabled:opacity-50">
-            {copied ? '✓ Kopiert' : share.isPending ? '…' : '🔗 Teilen'}
+          <button onClick={() => setShareOpen(true)} className="rounded-xl border border-border bg-card px-3 py-2 text-sm">
+            🔗 Teilen
           </button>
           {isOwner && (
             <>
@@ -143,9 +127,7 @@ export function CollectionDetail() {
         </div>
       </div>
 
-      {col.share_slug && isOwner && (
-        <p className="text-xs text-text-dim">Geteilt als: <code className="text-accent">/s/{col.share_slug}</code></p>
-      )}
+      {shareOpen && <ShareDialog targetType="collection" targetId={col.id} label={col.name} onClose={() => setShareOpen(false)} />}
 
       {data.moves.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-text-dim">

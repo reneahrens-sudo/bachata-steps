@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useLesson } from '../hooks/useLessons'
+import { ShareDialog } from '../components/ShareDialog'
 import { useMyMoveData } from '../hooks/useMyMoveData'
 import { useAuth } from '../hooks/useAuth'
 import { MediaPlayer } from '../components/moves/MediaPreview'
@@ -11,6 +13,7 @@ export function LessonDetail() {
   const { data, isLoading } = useLesson(id)
   const { data: myData } = useMyMoveData()
   const { user } = useAuth()
+  const [shareOpen, setShareOpen] = useState(false)
 
   if (isLoading) return <div className="py-20 text-center text-text-dim">Lädt…</div>
   if (!data) return <div className="py-20 text-center text-text-dim">Class nicht gefunden.</div>
@@ -36,12 +39,28 @@ export function LessonDetail() {
           </h1>
           {data.lesson.notes && <p className="mt-1 whitespace-pre-wrap text-sm text-text-dim">{data.lesson.notes}</p>}
         </div>
-        {isOwner && (
-          <Link to={`/lessons/${data.lesson.id}/bearbeiten`} className="shrink-0 rounded-xl border border-border bg-card px-3 py-2 text-sm">
-            ✏️ Bearbeiten
-          </Link>
-        )}
+        <div className="flex shrink-0 gap-2">
+          {user && (
+            <button onClick={() => setShareOpen(true)} className="rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              🔗 Teilen
+            </button>
+          )}
+          {isOwner && (
+            <Link to={`/lessons/${data.lesson.id}/bearbeiten`} className="rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              ✏️ Bearbeiten
+            </Link>
+          )}
+        </div>
       </div>
+
+      {shareOpen && (
+        <ShareDialog
+          targetType="lesson"
+          targetId={data.lesson.id}
+          label={`${data.lesson.course ? data.lesson.course + ' – ' : ''}${data.lesson.lesson_number != null ? `Lektion ${data.lesson.lesson_number}` : data.lesson.title}`}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {data.combo && (
         <div className="space-y-2">

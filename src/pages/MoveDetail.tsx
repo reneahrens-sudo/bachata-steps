@@ -8,6 +8,7 @@ import { useMoveSources } from '../hooks/useMoveMedia'
 import { MediaGallery } from '../components/moves/MediaPreview'
 import { StatusChips } from '../components/moves/StatusChips'
 import { CollectionPicker } from '../components/collections/CollectionPicker'
+import { ShareDialog } from '../components/ShareDialog'
 import { LEVEL_COLORS, categoryLabel, styleLabel } from '../lib/constants'
 import { useAuth } from '../hooks/useAuth'
 import { MoveCard } from '../components/moves/MoveCard'
@@ -38,6 +39,7 @@ export function MoveDetail() {
   const mine = myData?.[id ?? '']
   const [notes, setNotes] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   useEffect(() => setNotes(mine?.notes ?? ''), [mine?.notes])
 
   if (isLoading) return <div className="py-20 text-center text-text-dim">Lädt…</div>
@@ -181,6 +183,14 @@ export function MoveDetail() {
       <div className="flex gap-2">
         {user && (
           <button
+            onClick={() => setShareOpen(true)}
+            className="flex-1 rounded-xl border border-border bg-card py-3 font-medium transition hover:bg-card-hover"
+          >
+            🔗 Teilen
+          </button>
+        )}
+        {user && (
+          <button
             onClick={() => setPickerOpen(true)}
             className="flex-1 rounded-xl border border-border bg-card py-3 font-medium transition hover:bg-card-hover"
           >
@@ -198,6 +208,7 @@ export function MoveDetail() {
       </div>
 
       {pickerOpen && <CollectionPicker moveId={move.id} onClose={() => setPickerOpen(false)} />}
+      {shareOpen && <ShareDialog targetType="move" targetId={move.id} label={move.name} onClose={() => setShareOpen(false)} />}
     </div>
   )
 }

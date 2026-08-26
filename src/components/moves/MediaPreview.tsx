@@ -37,10 +37,15 @@ function hasPlayable(s: MediaSource): boolean {
   return !!(s.youtube_id || s.media_url)
 }
 
-/** Loops a time range [start,end] of a video — the "GIF" for lesson clips. */
+const CLIP_SPEEDS = [1, 0.5, 0.25] as const
+
+/** Loops a time range [start,end] of a video, with real controls: play/pause, slow-mo, sound, fullscreen. */
 function ClipPlayer({ source, className = '' }: { source: MediaSource; className?: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
   const ref = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(true)
+  const [paused, setPaused] = useState(false)
+  const [speedIdx, setSpeedIdx] = useState(0)
   const start = source.clip_start ?? 0
   const end = source.clip_end ?? undefined
 
@@ -54,16 +59,42 @@ function ClipPlayer({ source, className = '' }: { source: MediaSource; className
     const onTime = () => {
       if (end != null && v.currentTime >= end - 0.05) v.currentTime = start
     }
+    const onPlay = () => setPaused(false)
+    const onPause = () => setPaused(true)
     v.addEventListener('loadedmetadata', onLoaded)
     v.addEventListener('timeupdate', onTime)
+    v.addEventListener('play', onPlay)
+    v.addEventListener('pause', onPause)
     return () => {
       v.removeEventListener('loadedmetadata', onLoaded)
       v.removeEventListener('timeupdate', onTime)
+      v.removeEventListener('play', onPlay)
+      v.removeEventListener('pause', onPause)
     }
   }, [start, end, source.media_url])
 
+  const togglePlay = () => {
+    const v = ref.current
+    if (!v) return
+    if (v.paused) v.play().catch(() => {})
+    else v.pause()
+  }
+  const cycleSpeed = () => {
+    const next = (speedIdx + 1) % CLIP_SPEEDS.length
+    setSpeedIdx(next)
+    if (ref.current) ref.current.playbackRate = CLIP_SPEEDS[next]
+  }
+  const toggleFullscreen = () => {
+    const el = wrapRef.current
+    if (!el) return
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    else el.requestFullscreen?.().catch(() => {})
+  }
+
+  const btn = 'grid h-9 w-9 place-items-center rounded-full bg-black/60 text-sm text-white backdrop-blur transition hover:bg-black/85 active:scale-95'
+
   return (
-    <div className={`relative overflow-hidden rounded-2xl bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
+    <div ref={wrapRef} className={`relative overflow-hidden rounded-2xl bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
       <video
         ref={ref}
         src={source.media_url ?? undefined}
@@ -72,15 +103,23 @@ function ClipPlayer({ source, className = '' }: { source: MediaSource; className
         loop
         playsInline
         autoPlay
-        className="h-full w-full object-contain"
+        onClick={togglePlay}
+        className="h-full w-full cursor-pointer object-contain"
       />
-      <button
-        onClick={() => setMuted((m) => !m)}
-        className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-black/60 text-sm text-white"
-        title={muted ? 'Ton an' : 'Ton aus'}
-      >
-        {muted ? '🔇' : '🔊'}
-      </button>
+      <div className="absolute bottom-2 right-2 flex gap-1.5">
+        <button onClick={togglePlay} className={btn} title={paused ? 'Abspielen' : 'Pause'}>
+          {paused ? '▶' : '⏸'}
+        </button>
+        <button onClick={cycleSpeed} className={btn + ' w-auto px-2 text-xs font-semibold'} title="Tempo">
+          {CLIP_SPEEDS[speedIdx]}×
+        </button>
+        <button onClick={() => setMuted((m) => !m)} className={btn} title={muted ? 'Ton an' : 'Ton aus'}>
+          {muted ? '🔇' : '🔊'}
+        </button>
+        <button onClick={toggleFullscreen} className={btn} title="Vollbild">
+          ⛶
+        </button>
+      </div>
     </div>
   )
 }
