@@ -39,13 +39,23 @@ function hasPlayable(s: MediaSource): boolean {
 
 const CLIP_SPEEDS = [1, 0.5, 0.25] as const
 
-/** Loops a time range [start,end] of a video, with real controls: play/pause, slow-mo, sound, fullscreen. */
+function fmtTime(t: number): string {
+  if (!isFinite(t) || t < 0) t = 0
+  const m = Math.floor(t / 60)
+  const s = Math.floor(t % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+/** Loops a time range [start,end] of a video, with a full control bar:
+ *  play/pause, seek bar + time, slow-mo, sound, fullscreen. */
 function ClipPlayer({ source, className = '' }: { source: MediaSource; className?: string }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const ref = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(true)
   const [paused, setPaused] = useState(false)
   const [speedIdx, setSpeedIdx] = useState(0)
+  const [cur, setCur] = useState(0)
+  const [dur, setDur] = useState(0)
   const start = source.clip_start ?? 0
   const end = source.clip_end ?? undefined
 
@@ -53,11 +63,14 @@ function ClipPlayer({ source, className = '' }: { source: MediaSource; className
     const v = ref.current
     if (!v) return
     const onLoaded = () => {
+      setDur(v.duration || 0)
       v.currentTime = start
       v.play().catch(() => {})
     }
     const onTime = () => {
-      if (end != null && v.currentTime >= end - 0.05) v.currentTime = start
+      // loop back only when playing — while paused/seeking the user may hold at the end
+      if (end != null && !v.paused && v.currentTime >= end - 0.05) v.currentTime = start
+      setCur(v.currentTime)
     }
     const onPlay = () => setPaused(false)
     const onPause = () => setPaused(true)
@@ -73,11 +86,24 @@ function ClipPlayer({ source, className = '' }: { source: MediaSource; className
     }
   }, [start, end, source.media_url])
 
+  // clip-relative timeline
+  const clipStart = start
+  const clipEnd = end ?? dur
+  const clipLen = Math.max(0.1, clipEnd - clipStart)
+  const frac = Math.min(1, Math.max(0, (cur - clipStart) / clipLen))
+
   const togglePlay = () => {
     const v = ref.current
     if (!v) return
     if (v.paused) v.play().catch(() => {})
     else v.pause()
+  }
+  const seekTo = (f: number) => {
+    const v = ref.current
+    if (!v) return
+    const t = clipStart + Math.min(1, Math.max(0, f)) * clipLen
+    v.currentTime = t
+    setCur(t)
   }
   const cycleSpeed = () => {
     const next = (speedIdx + 1) % CLIP_SPEEDS.length
@@ -91,7 +117,7 @@ function ClipPlayer({ source, className = '' }: { source: MediaSource; className
     else el.requestFullscreen?.().catch(() => {})
   }
 
-  const btn = 'grid h-9 w-9 place-items-center rounded-full bg-black/60 text-sm text-white backdrop-blur transition hover:bg-black/85 active:scale-95'
+  const btn = 'grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm text-white transition hover:bg-white/20 active:scale-95'
 
   return (
     <div ref={wrapRef} className={`relative overflow-hidden rounded-2xl bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
@@ -106,11 +132,24 @@ function ClipPlayer({ source, className = '' }: { source: MediaSource; className
         onClick={togglePlay}
         className="h-full w-full cursor-pointer object-contain"
       />
-      <div className="absolute bottom-2 right-2 flex gap-1.5">
+      {/* control bar: play/pause · time · seek · speed · sound · fullscreen */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-5">
         <button onClick={togglePlay} className={btn} title={paused ? 'Abspielen' : 'Pause'}>
           {paused ? '▶' : '⏸'}
         </button>
-        <button onClick={cycleSpeed} className={btn + ' w-auto px-2 text-xs font-semibold'} title="Tempo">
+        <span className="shrink-0 font-mono text-[11px] text-white/90">
+          {fmtTime(cur - clipStart)} / {fmtTime(clipLen)}
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          value={Math.round(frac * 1000)}
+          onChange={(e) => seekTo(Number(e.target.value) / 1000)}
+          className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[var(--color-accent)]"
+          aria-label="Position"
+        />
+        <button onClick={cycleSpeed} className={btn + ' w-auto px-1.5 text-xs font-semibold'} title="Tempo">
           {CLIP_SPEEDS[speedIdx]}×
         </button>
         <button onClick={() => setMuted((m) => !m)} className={btn} title={muted ? 'Ton an' : 'Ton aus'}>
