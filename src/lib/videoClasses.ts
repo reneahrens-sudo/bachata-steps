@@ -38,10 +38,14 @@ export async function buildMovesAndCombo(opts: {
   const { file, videoEl: v, duration, segs, userId, style, visibility, videoId, url, comboName, extraVideoLabel, movePrefix, lessonId = null, onMsg } = opts
 
   const canPreview = canTranscodeInBrowser(file.size)
-  const genPreview = async (moveId: string, from: number, to: number, maxSeconds?: number) => {
+  const genPreview = async (moveId: string, from: number, to: number, maxSeconds?: number, msgPrefix?: string) => {
     if (!canPreview) return
-    try { await attachPreview({ moveId, source: file, start: from, end: to, userId, maxSeconds }) }
-    catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
+    try {
+      await attachPreview({
+        moveId, source: file, start: from, end: to, userId, maxSeconds,
+        onProgress: msgPrefix ? (p) => onMsg?.(`${msgPrefix} ${p}%`) : undefined,
+      })
+    } catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
   }
 
   const moveIds: string[] = []
@@ -64,7 +68,7 @@ export async function buildMovesAndCombo(opts: {
           .update({ media_url: url, thumb_url: thumbUrl, clip_start: s.start, clip_end: s.end, video_id: videoId })
           .eq('id', s.link.moveId)
         if (ue) throw ue
-        await genPreview(s.link.moveId, s.start, s.end)
+        await genPreview(s.link.moveId, s.start, s.end, undefined, `Vorschau-Clip ${i + 1}/${segs.length} wird erstellt…`)
       } else {
         const { error: mme } = await supabase.from('move_media').insert({
           move_id: s.link.moveId, owner_id: userId, label: extraVideoLabel,
@@ -100,7 +104,7 @@ export async function buildMovesAndCombo(opts: {
     if (me) throw me
     moveIds.push(move.id)
     onMsg?.(`Vorschau-Clip ${i + 1}/${segs.length} wird erstellt…`)
-    await genPreview(move.id, s.start, s.end)
+    await genPreview(move.id, s.start, s.end, undefined, `Vorschau-Clip ${i + 1}/${segs.length} wird erstellt…`)
   }
 
   onMsg?.('Combo wird erstellt…')
@@ -122,7 +126,7 @@ export async function buildMovesAndCombo(opts: {
   await supabase.from('combo_items').insert(moveIds.map((mid, idx) => ({ combo_id: combo.id, move_id: mid, position: idx })))
 
   onMsg?.('Vorschau-Clip der Combo wird erstellt…')
-  await genPreview(combo.id, 0, duration || COMBO_PREVIEW_MAX_SECONDS, COMBO_PREVIEW_MAX_SECONDS)
+  await genPreview(combo.id, 0, duration || COMBO_PREVIEW_MAX_SECONDS, COMBO_PREVIEW_MAX_SECONDS, 'Vorschau-Clip der Combo wird erstellt…')
 
   return { comboId: combo.id, moveIds }
 }

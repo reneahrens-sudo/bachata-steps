@@ -49,11 +49,26 @@ export async function uploadClassVideo(
   return { videoId: data.id, url: publicVideoUrl(storagePath), storagePath }
 }
 
+/** PUT with real upload-progress events (fetch can't report progress). */
+function putWithProgress(url: string, body: Blob, contentType: string, onProgress?: (pct: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
+    xhr.setRequestHeader('Content-Type', contentType)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2-Upload fehlgeschlagen (HTTP ${xhr.status}).`)))
+    xhr.onerror = () => reject(new Error('R2-Upload fehlgeschlagen (Netzwerkfehler).'))
+    xhr.send(body)
+  })
+}
+
 /** Uploads a class video to Cloudflare R2 via a presigned URL from the edge function. */
 export async function uploadClassVideoR2(
   file: File,
   userId: string,
-  opts: { title?: string; visibility?: string; durationS?: number } = {},
+  opts: { title?: string; visibility?: string; durationS?: number; onProgress?: (pct: number) => void } = {},
 ): Promise<{ videoId: string; url: string; storagePath: string }> {
   const { data, error } = await supabase.functions.invoke('r2-presign', {
     body: { filename: file.name, contentType: file.type || 'video/mp4' },
@@ -65,8 +80,7 @@ export async function uploadClassVideoR2(
   }
   if (!publicUrl) throw new Error('R2 ohne öffentliche URL konfiguriert (R2_PUBLIC_BASE fehlt).')
 
-  const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file })
-  if (!put.ok) throw new Error(`R2-Upload fehlgeschlagen (HTTP ${put.status}).`)
+  await putWithProgress(uploadUrl, file, contentType, opts.onProgress)
 
   const { data: v, error: e2 } = await supabase
     .from('videos')

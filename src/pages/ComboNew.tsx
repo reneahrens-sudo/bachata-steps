@@ -46,8 +46,13 @@ export function ComboNew() {
         setSaving(false)
         return
       }
-      setSaveMsg('Video wird hochgeladen…')
-      const { videoId, url } = await uploadClassVideoSmart(data.file, user.id, { title: comboName, visibility, durationS: data.duration })
+      setSaveMsg('Video wird hochgeladen… 0%')
+      const { videoId, url } = await uploadClassVideoSmart(data.file, user.id, {
+        title: comboName,
+        visibility,
+        durationS: data.duration,
+        onProgress: (p) => setSaveMsg(`Video wird hochgeladen… ${p}%`),
+      })
 
       const { comboId } = await buildMovesAndCombo({
         file: data.file, videoEl: data.videoEl, duration: data.duration, segs: data.segs,
@@ -94,7 +99,12 @@ export function ComboNew() {
         {saving ? 'Speichert…' : 'Combo speichern'}
       </button>
 
-      {saveMsg && <p className={`text-center text-sm ${saveMsg.startsWith('Fehler') ? 'text-red-400' : 'text-text-dim'}`}>{saveMsg}</p>}
+      {saveMsg && (
+        <p className={`text-center text-sm ${saveMsg.startsWith('Fehler') ? 'text-red-400' : `text-text-dim ${saving ? 'animate-pulse' : ''}`}`}>
+          {saveMsg}
+        </p>
+      )}
+      {saving && <p className="text-center text-xs text-text-dim">Bitte die Seite geöffnet lassen — große Videos brauchen etwas.</p>}
     </div>
   )
 }

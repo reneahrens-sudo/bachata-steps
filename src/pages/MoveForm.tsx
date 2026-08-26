@@ -36,6 +36,7 @@ export function MoveForm() {
   const [sourceUrl, setSourceUrl] = useState('')
   const [comboMoves, setComboMoves] = useState<{ id: string; name: string }[]>([])
   const [busy, setBusy] = useState(false)
+  const [busyMsg, setBusyMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [variationOf, setVariationOf] = useState<string | null>(null)
   const [variationName, setVariationName] = useState<string | null>(null)
@@ -207,11 +208,21 @@ export function MoveForm() {
         const used = await usedStorageBytes(user.id)
         if (used + vid.file.size > STORAGE_QUOTA_BYTES) throw new Error('Speicher voll — bitte zuerst Videos unter „Meine Videos" löschen.')
         const seg = vid.segs[0]
-        const { videoId, url } = await uploadClassVideoSmart(vid.file, user.id, { title: name.trim(), visibility, durationS: vid.duration })
+        setBusyMsg('Video wird hochgeladen… 0%')
+        const { videoId, url } = await uploadClassVideoSmart(vid.file, user.id, {
+          title: name.trim(),
+          visibility,
+          durationS: vid.duration,
+          onProgress: (p) => setBusyMsg(`Video wird hochgeladen… ${p}%`),
+        })
         let thumbUrl: string | null = null
         try { thumbUrl = await uploadThumb(await captureFrame(vid.videoEl, seg.start), user.id) } catch { /* optional */ }
         await supabase.from('moves').update({ media_url: url, thumb_url: thumbUrl, clip_start: seg.start, clip_end: seg.end, video_id: videoId }).eq('id', moveId)
-        try { await attachPreview({ moveId, source: vid.file, start: seg.start, end: seg.end, userId: user.id }) } catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
+        setBusyMsg('Vorschau-Clip wird erstellt…')
+        try {
+          await attachPreview({ moveId, source: vid.file, start: seg.start, end: seg.end, userId: user.id, onProgress: (p) => setBusyMsg(`Vorschau-Clip wird erstellt… ${p}%`) })
+        } catch (e) { console.warn('Vorschau-Clip übersprungen:', e) }
+        setBusyMsg(null)
       }
 
       // sync combo steps
@@ -451,6 +462,7 @@ export function MoveForm() {
       )}
 
       {err && <p className="text-sm text-red-400">{err}</p>}
+      {busy && busyMsg && <p className="animate-pulse text-center text-sm text-text-dim">{busyMsg}</p>}
 
       <div className="flex gap-2">
         <button type="button" onClick={() => navigate(-1)} className="flex-1 rounded-xl border border-border py-3 font-medium text-text-dim">
