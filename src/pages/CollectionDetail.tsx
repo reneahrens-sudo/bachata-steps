@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useUpdateCollection, useRemoveFromCollection, useReorderCollection } from '../hooks/useCollections'
 import { MoveGrid } from '../components/moves/MoveGrid'
 import { ShareDialog } from '../components/ShareDialog'
+import { ShareLinkInfo } from '../components/ShareLinkInfo'
 import type { Collection, Move } from '../lib/types'
 
 export function CollectionDetail() {
@@ -127,6 +128,7 @@ export function CollectionDetail() {
         </div>
       </div>
 
+      <ShareLinkInfo targetId={col.id} />
       {shareOpen && <ShareDialog targetType="collection" targetId={col.id} label={col.name} onClose={() => setShareOpen(false)} />}
 
       {data.moves.length === 0 ? (

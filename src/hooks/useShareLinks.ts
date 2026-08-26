@@ -9,14 +9,38 @@ export function shareUrlFor(token: string): string {
   return `${window.location.origin}/s/${token}`
 }
 
-/** All share links created by the current user (RLS-scoped). */
+/** All share links created by the current user (RLS-scoped).
+ *  Links expired for more than 30 days are purged automatically on load
+ *  (recently expired ones stay visible so they can still be extended). */
 export function useMyShareLinks() {
   const { user } = useAuth()
   return useQuery({
     queryKey: ['share_links', user?.id],
     enabled: !!user,
     queryFn: async (): Promise<ShareLink[]> => {
+      await supabase
+        .from('share_links')
+        .delete()
+        .lt('expires_at', new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
       const { data, error } = await supabase.from('share_links').select('*').order('created_at', { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+/** The current user's share links pointing at one specific target (move/lesson/collection). */
+export function useShareLinksFor(targetId: string | null | undefined) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['share_links_for', targetId, user?.id],
+    enabled: !!user && !!targetId,
+    queryFn: async (): Promise<ShareLink[]> => {
+      const { data, error } = await supabase
+        .from('share_links')
+        .select('*')
+        .eq('target_id', targetId!)
+        .order('created_at', { ascending: false })
       if (error) throw error
       return data ?? []
     },
@@ -43,7 +67,7 @@ export function useCreateShareLink() {
       if (error) throw error
       return shareUrlFor(token)
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share_links'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share_links'] }); qc.invalidateQueries({ queryKey: ['share_links_for'] }) },
   })
 }
 
@@ -55,7 +79,7 @@ export function useUpdateShareLink() {
       const { error } = await supabase.from('share_links').update({ expires_at: v.expires_at }).eq('id', v.id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share_links'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share_links'] }); qc.invalidateQueries({ queryKey: ['share_links_for'] }) },
   })
 }
 
@@ -66,6 +90,6 @@ export function useDeleteShareLink() {
       const { error } = await supabase.from('share_links').delete().eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['share_links'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['share_links'] }); qc.invalidateQueries({ queryKey: ['share_links_for'] }) },
   })
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useLesson } from '../hooks/useLessons'
 import { ShareDialog } from '../components/ShareDialog'
+import { ShareLinkInfo } from '../components/ShareLinkInfo'
 import { useMyMoveData } from '../hooks/useMyMoveData'
 import { useAuth } from '../hooks/useAuth'
 import { MediaPlayer } from '../components/moves/MediaPreview'
@@ -52,6 +53,8 @@ export function LessonDetail() {
           )}
         </div>
       </div>
+
+      <ShareLinkInfo targetId={data.lesson.id} />
 
       {shareOpen && (
         <ShareDialog

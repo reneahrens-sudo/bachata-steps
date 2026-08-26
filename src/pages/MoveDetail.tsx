@@ -9,6 +9,7 @@ import { MediaGallery } from '../components/moves/MediaPreview'
 import { StatusChips } from '../components/moves/StatusChips'
 import { CollectionPicker } from '../components/collections/CollectionPicker'
 import { ShareDialog } from '../components/ShareDialog'
+import { ShareLinkInfo } from '../components/ShareLinkInfo'
 import { LEVEL_COLORS, categoryLabel, styleLabel } from '../lib/constants'
 import { useAuth } from '../hooks/useAuth'
 import { MoveCard } from '../components/moves/MoveCard'
@@ -180,6 +181,7 @@ export function MoveDetail() {
       )}
 
       {/* actions */}
+      <ShareLinkInfo targetId={move.id} />
       <div className="flex gap-2">
         {user && (
           <button
