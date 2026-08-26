@@ -297,7 +297,7 @@ export type Database = {
           token: string
           owner_id: string
           target_type: string
-          target_id: string
+          target_id: string | null
           label: string | null
           expires_at: string | null
           created_at: string | null
@@ -307,7 +307,7 @@ export type Database = {
           token: string
           owner_id: string
           target_type: string
-          target_id: string
+          target_id?: string | null
           label?: string | null
           expires_at?: string | null
           created_at?: string | null
@@ -317,7 +317,7 @@ export type Database = {
           token?: string
           owner_id?: string
           target_type?: string
-          target_id?: string
+          target_id?: string | null
           label?: string | null
           expires_at?: string | null
           created_at?: string | null

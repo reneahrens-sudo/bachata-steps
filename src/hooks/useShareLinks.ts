@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
 import type { ShareLink } from '../lib/types'
 
-export type ShareTargetType = 'move' | 'lesson' | 'collection'
+export type ShareTargetType = 'move' | 'lesson' | 'collection' | 'guest'
 
 export function shareUrlFor(token: string): string {
   return `${window.location.origin}/s/${token}`
@@ -28,7 +28,7 @@ export function useCreateShareLink() {
   const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (v: { targetType: ShareTargetType; targetId: string; label: string; expiresInHours: number | null }) => {
+    mutationFn: async (v: { targetType: ShareTargetType; targetId: string | null; label: string; expiresInHours: number | null }) => {
       if (!user) throw new Error('Nicht angemeldet')
       const token = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
       const expires_at = v.expiresInHours == null ? null : new Date(Date.now() + v.expiresInHours * 3600_000).toISOString()

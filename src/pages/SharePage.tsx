@@ -1,6 +1,8 @@
-import { useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { MediaGallery, MediaPlayer, moveToSource } from '../components/moves/MediaPreview'
 import { categoryLabel } from '../lib/constants'
 import type { Move, MoveMedia, Lesson, Collection, MediaSource } from '../lib/types'
@@ -9,10 +11,15 @@ type ShareData =
   | { type: 'move'; move: Move; media: MoveMedia[]; steps: Move[] }
   | { type: 'lesson'; lesson: Lesson; combo: Move | null; moves: Move[] }
   | { type: 'collection'; collection: Collection; moves: Move[] }
+  | { type: 'guest'; email: string; expires_at: string | null }
 
-/** Public, read-only viewer for a share link — no account, no navigation into the app. */
+/** Public viewer for a share link: single content read-only, or guest entry to the whole platform. */
 export function SharePage() {
   const { token } = useParams()
+  const navigate = useNavigate()
+  const { isRealUser } = useAuth()
+  const [entering, setEntering] = useState(false)
+  const [enterErr, setEnterErr] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['share', token],
@@ -56,6 +63,43 @@ export function SharePage() {
         <div className="text-5xl">{expired ? '⏳' : '🔒'}</div>
         <p className="mt-3 font-medium text-text">{expired ? 'Dieser Link ist abgelaufen.' : 'Dieser Link existiert nicht (mehr).'}</p>
         <p className="mt-1 text-sm">Bitte die Person fragen, die ihn geteilt hat.</p>
+      </div>,
+    )
+  }
+
+  if (data.type === 'guest') {
+    const enter = async () => {
+      setEntering(true)
+      setEnterErr(null)
+      // The guest account's password IS the link token (unguessable, expiry enforced via RLS).
+      const { error } = await supabase.auth.signInWithPassword({ email: data.email, password: token! })
+      if (error) {
+        setEnterErr('Gast-Zugang konnte nicht geöffnet werden. Bitte den Link erneut anfragen.')
+        setEntering(false)
+        return
+      }
+      navigate('/', { replace: true })
+    }
+    return shell(
+      <div className="mx-auto max-w-sm py-14 text-center">
+        <div className="text-5xl">🎟️</div>
+        <h1 className="mt-3 text-2xl font-bold">Gast-Zugang</h1>
+        <p className="mt-2 text-sm text-text-dim">
+          Du wurdest eingeladen, BachataMoves als Gast zu erkunden
+          {data.expires_at
+            ? ` — gültig bis ${new Date(data.expires_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.`
+            : '.'}
+        </p>
+        {isRealUser ? (
+          <button onClick={() => navigate('/', { replace: true })} className="mt-5 w-full rounded-xl bg-accent py-3 font-semibold text-white">
+            Du bist bereits angemeldet — zur Plattform →
+          </button>
+        ) : (
+          <button onClick={enter} disabled={entering} className="mt-5 w-full rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-60">
+            {entering ? 'Öffnet…' : 'Als Gast betreten'}
+          </button>
+        )}
+        {enterErr && <p className="mt-3 text-sm text-red-400">{enterErr}</p>}
       </div>,
     )
   }

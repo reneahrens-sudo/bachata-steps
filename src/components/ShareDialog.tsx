@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useCreateShareLink, type ShareTargetType } from '../hooks/useShareLinks'
 
 const EXPIRY_OPTIONS = [
+  { hours: 1, label: '1 Stunde' },
+  { hours: 2, label: '2 Stunden' },
   { hours: 24, label: '24 Stunden' },
   { hours: 24 * 7, label: '7 Tage' },
   { hours: 24 * 30, label: '30 Tage' },
@@ -17,20 +19,34 @@ export function ShareDialog({
   onClose,
 }: {
   targetType: ShareTargetType
-  targetId: string
+  targetId: string | null
   label: string
   onClose: () => void
 }) {
   const create = useCreateShareLink()
-  const [hours, setHours] = useState<number | null>(24 * 7)
+  const [hours, setHours] = useState<number | null | 'custom'>(24 * 7)
+  const [customVal, setCustomVal] = useState('')
+  const [customUnit, setCustomUnit] = useState<'h' | 'd'>('h')
   const [url, setUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const effectiveHours = (): number | null | undefined => {
+    if (hours !== 'custom') return hours
+    const n = parseFloat(customVal.replace(',', '.'))
+    if (!isFinite(n) || n <= 0) return undefined // invalid custom input
+    return customUnit === 'd' ? n * 24 : n
+  }
+
   const doCreate = async () => {
     setErr(null)
+    const h = effectiveHours()
+    if (h === undefined) {
+      setErr('Bitte eine gültige Dauer eingeben (z.B. 3).')
+      return
+    }
     try {
-      setUrl(await create.mutateAsync({ targetType, targetId, label, expiresInHours: hours }))
+      setUrl(await create.mutateAsync({ targetType, targetId, label, expiresInHours: h }))
     } catch (e) {
       setErr((e as Error).message)
     }
@@ -60,7 +76,7 @@ export function ShareDialog({
         {!url ? (
           <>
             <p className="mb-2 text-sm font-medium">Gültigkeit</p>
-            <div className="mb-4 grid grid-cols-2 gap-2">
+            <div className="mb-2 grid grid-cols-3 gap-2">
               {EXPIRY_OPTIONS.map((o) => (
                 <button
                   key={o.label}
@@ -76,12 +92,39 @@ export function ShareDialog({
                 </button>
               ))}
             </div>
+            {/* free-form duration */}
+            <div
+              className="mb-4 flex items-center gap-2 rounded-xl border px-3 py-2"
+              style={{ borderColor: hours === 'custom' ? 'var(--color-accent)' : 'var(--color-border)' }}
+            >
+              <span className="text-sm text-text-dim">Eigene Dauer:</span>
+              <input
+                type="number"
+                min={0.1}
+                step="any"
+                value={customVal}
+                onFocus={() => setHours('custom')}
+                onChange={(e) => { setCustomVal(e.target.value); setHours('custom') }}
+                placeholder="z.B. 3"
+                className="w-20 rounded-lg border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+              />
+              <select
+                value={customUnit}
+                onChange={(e) => { setCustomUnit(e.target.value as 'h' | 'd'); setHours('custom') }}
+                className="rounded-lg border border-border bg-bg px-2 py-1.5 text-sm"
+              >
+                <option value="h">Stunden</option>
+                <option value="d">Tage</option>
+              </select>
+            </div>
             {err && <p className="mb-2 text-sm text-red-400">{err}</p>}
             <button onClick={doCreate} disabled={create.isPending} className="w-full rounded-xl bg-accent py-3 font-semibold text-white disabled:opacity-60">
               {create.isPending ? 'Erstellt…' : 'Link erstellen'}
             </button>
             <p className="mt-2 text-xs text-text-dim">
-              Wer den Link hat, sieht nur diesen Inhalt — ohne Zugang zur Plattform.
+              {targetType === 'guest'
+                ? 'Wer den Link hat, kann die GESAMTE Plattform als Gast nutzen — bis der Link abläuft oder du ihn löschst.'
+                : 'Wer den Link hat, sieht nur diesen Inhalt — ohne Zugang zur Plattform.'}
             </p>
           </>
         ) : (
